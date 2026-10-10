@@ -52,7 +52,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# python packaging build dirs (do not ignore frontend/lib)
+!frontend/lib/
+!frontend/lib/**
 lib64/
 parts/
 sdist/
