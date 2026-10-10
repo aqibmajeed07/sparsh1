@@ -101,6 +101,7 @@ export default function SignLabPage() {
   const [visionTranslation, setVisionTranslation] = useState('');
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const visionSimRef = useRef<any>(null);
   const [fingerTracking, setFingerTracking] = useState<any>(null);
 
   // ── Media Tab State ──

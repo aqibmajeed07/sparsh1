@@ -69,14 +69,24 @@ function SidebarContent({ role, userName, pathname, navItems, onSignOut }: Sideb
   return (
     <div className="flex flex-col h-full py-6 px-4">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-2 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-bold text-lg shrink-0">
-          S
+      <div className="flex items-center justify-between px-2 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-bold text-lg shrink-0">
+            S
+          </div>
+          <div>
+            <span className="gradient-text font-bold text-lg block leading-none">SPARSH</span>
+            <span className="text-white/40 text-[10px] capitalize">{role.replace('_', ' ')}</span>
+          </div>
         </div>
-        <div>
-          <span className="gradient-text font-bold text-lg block leading-none">SPARSH</span>
-          <span className="text-white/40 text-[10px] capitalize">{role.replace('_', ' ')}</span>
-        </div>
+        <button
+          onClick={onSignOut}
+          title="Sign Out"
+          className="p-2 rounded-xl text-white/40 hover:text-red-400 hover:bg-red-500/10 transition"
+          aria-label="Sign Out"
+        >
+          <span className="text-base">🚪</span>
+        </button>
       </div>
 
       {/* Navigation */}
@@ -161,8 +171,16 @@ export default function Sidebar({ role = 'student', userName = 'User' }: Sidebar
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('sparsh_user');
+        sessionStorage.clear();
+      }
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Sign out error', e);
+    }
+    router.replace('/login');
   };
 
   const contentProps: SidebarContentProps = {

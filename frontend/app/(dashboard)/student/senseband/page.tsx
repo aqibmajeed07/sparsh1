@@ -81,6 +81,17 @@ function StatusBadge({ status }: { status: SenseBandStatus }) {
     );
 }
 
+const WEEKLY_VIBRATIONS = [
+    { day: 'Mon', count: 18 },
+    { day: 'Tue', count: 24 },
+    { day: 'Wed', count: 32 },
+    { day: 'Thu', count: 28 },
+    { day: 'Fri', count: 45 },
+    { day: 'Sat', count: 12 },
+    { day: 'Sun', count: 15 },
+];
+const maxVib = Math.max(...WEEKLY_VIBRATIONS.map(d => d.count), 1);
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SenseBandPage() {
     const [status, setStatus] = useState<SenseBandStatus>('disconnected');
