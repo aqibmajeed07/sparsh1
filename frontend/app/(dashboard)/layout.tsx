@@ -36,68 +36,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const init = async () => {
       try {
-        // ── 0. Check localStorage for saved session role ───────────────────────
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('sparsh_user');
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (parsed && parsed.role) {
-                if (!cancelled) {
-                  setProfile(parsed);
-                  clearTimeout(timeoutId);
-                  setLoading(false);
-                }
-                return;
-              }
-            } catch (e) { }
-          }
-        }
-
-        // ── 1. Get session from local storage first (instant, no network) ──
+        // ── 1. Check Supabase session first ───────────────────────────────
         const { data: sessionData } = await supabase.auth.getSession();
         const session = sessionData?.session;
 
         if (!session?.user) {
-          // No session found — fallback to Guest Student profile so app works instantly for testing
+          // No active session — clear any stale cache and redirect to login
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('sparsh_user');
+          }
           if (!cancelled) {
-            setProfile({
-              id: 'guest',
-              full_name: 'Student Learner',
-              role: 'student',
-              avatar_url: null,
-            });
             clearTimeout(timeoutId);
-            setLoading(false);
+            router.replace('/login');
           }
           return;
         }
 
-        // ── 2. Fetch profile (network call) ───────────────────────────────
-        const { data: profileData, error } = await supabase
+        // ── 2. Fetch authenticated profile from database ──────────────────
+        const { data: profileData } = await supabase
           .from('profiles')
-          .select('id, full_name, role, avatar_url')  // select only what we need
+          .select('id, full_name, role, avatar_url')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (cancelled) return;
         clearTimeout(timeoutId);
 
-        if (error || !profileData) {
-          // Profile fetch failed — build a minimal profile from session
-          setProfile({
-            id: session.user.id,
-            full_name: session.user.user_metadata?.full_name || session.user.email || 'User',
-            role: session.user.user_metadata?.role || 'student',
-            avatar_url: null,
-          });
-        } else {
-          setProfile(profileData);
+        const authenticRole = profileData?.role || session.user.user_metadata?.role || 'student';
+        const authenticName = profileData?.full_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User';
+
+        const finalProfile = {
+          id: session.user.id,
+          full_name: authenticName,
+          role: authenticRole,
+          avatar_url: profileData?.avatar_url || null,
+        };
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sparsh_user', JSON.stringify(finalProfile));
         }
-      } catch {
-        // Any unexpected error → redirect to login
-        if (!cancelled) { router.replace('/login'); }
-        clearTimeout(timeoutId);
+
+        setProfile(finalProfile);
+      } catch (err) {
+        console.error('Session initialization error:', err);
+        if (!cancelled) {
+          clearTimeout(timeoutId);
+          router.replace('/login');
+        }
         return;
       } finally {
         if (!cancelled) setLoading(false);

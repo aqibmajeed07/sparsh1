@@ -5,203 +5,165 @@ import { supabase } from '@/lib/supabase';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import Link from 'next/link';
 
 const loginSchema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(6, 'Minimum 6 characters'),
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-type RoleKey = 'student' | 'teacher' | 'institution_admin' | 'ngo_admin' | 'super_admin';
-
-const ROLES: { id: RoleKey; label: string; icon: string; redirect: string }[] = [
-  { id: 'student', label: 'Student', icon: '🎓', redirect: '/student' },
-  { id: 'teacher', label: 'Teacher', icon: '👩‍🏫', redirect: '/teacher' },
-  { id: 'institution_admin', label: 'School Admin', icon: '🏫', redirect: '/admin' },
-  { id: 'ngo_admin', label: 'NGO Admin', icon: '🏢', redirect: '/admin' },
-  { id: 'super_admin', label: 'Super Admin', icon: '⚡', redirect: '/super-admin' },
-];
-
-const DEMO_ACCOUNTS = [
-  { role: 'student' as RoleKey, email: 'student@gmail.com', pass: 'student123', label: '🎓 Student Demo' },
-  { role: 'teacher' as RoleKey, email: 'teacher@gmail.com', pass: 'teacher123', label: '👩‍🏫 Teacher Demo' },
-  { role: 'institution_admin' as RoleKey, email: 'school@gmail.com', pass: 'admin123', label: '🏫 School Admin' },
-  { role: 'ngo_admin' as RoleKey, email: 'ngo@gmail.com', pass: 'admin123', label: '🏢 NGO Admin' },
-  { role: 'super_admin' as RoleKey, email: 'admin@gmail.com', pass: 'admin123', label: '⚡ Super Admin' },
-];
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<RoleKey>('student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<z.infer<typeof loginSchema>>({
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'student@gmail.com',
-      password: 'password123',
+      email: '',
+      password: '',
     }
   });
 
-  const handleDemoFill = (demo: typeof DEMO_ACCOUNTS[0]) => {
-    setSelectedRole(demo.role);
-    setValue('email', demo.email);
-    setValue('password', demo.pass);
-  };
-
-  const onSubmit = async (data: z.infer<typeof loginSchema>) => {
+  const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     setError('');
 
-    let authUser: any = null;
-
     try {
-      let { data: auth } = await supabase.auth.signInWithPassword({
-        email: data.email,
+      const { data: auth, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email.trim(),
         password: data.password,
       });
 
-      if (auth && auth.user) {
-        authUser = auth.user;
+      if (authError || !auth?.user) {
+        setError(authError?.message || 'Invalid email or password. Please try again.');
+        setLoading(false);
+        return;
       }
-    } catch (e) {
-      console.warn('Supabase cloud auth skipped, using local role routing');
-    }
 
-    // Determine final role: explicit tab selection or email keyword detection
-    let finalRole: RoleKey = selectedRole;
-    const emailLower = data.email.toLowerCase();
+      const user = auth.user;
 
-    if (emailLower.includes('admin') || emailLower.includes('super')) {
-      finalRole = 'super_admin';
-    } else if (emailLower.includes('teacher') || emailLower.includes('faculty') || emailLower.includes('prof')) {
-      finalRole = 'teacher';
-    } else if (emailLower.includes('school') || emailLower.includes('inst') || emailLower.includes('principal')) {
-      finalRole = 'institution_admin';
-    } else if (emailLower.includes('ngo') || emailLower.includes('foundation') || emailLower.includes('org')) {
-      finalRole = 'ngo_admin';
-    } else if (emailLower.includes('student')) {
-      finalRole = 'student';
-    }
+      // ── Query the user's real profile from Supabase Database ──
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    const matchedRole = ROLES.find(r => r.id === finalRole) || ROLES.find(r => r.id === selectedRole) || ROLES[0];
+      // Retrieve actual role from database profile, falling back to auth metadata
+      const realRole = profile?.role || user.user_metadata?.role || 'student';
+      const realName = profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
 
-    // Save local session for offline dashboard layouts and sidebars
-    if (typeof window !== 'undefined') {
       const userProfile = {
-        id: authUser?.id || ('demo-user-' + btoa(data.email).replace(/=/g, '')),
-        email: data.email,
-        full_name: matchedRole.label + ' User',
-        role: finalRole,
+        id: user.id,
+        email: user.email,
+        full_name: realName,
+        role: realRole,
+        avatar_url: profile?.avatar_url || null,
       };
-      localStorage.setItem('sparsh_user', JSON.stringify(userProfile));
-    }
 
-    router.push(matchedRole.redirect);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sparsh_user', JSON.stringify(userProfile));
+      }
+
+      // ── Route dynamically to the user's authentic dashboard ──
+      if (realRole === 'teacher') {
+        router.push('/teacher');
+      } else if (realRole === 'institution_admin' || realRole === 'ngo_admin' || realRole === 'admin') {
+        router.push('/admin');
+      } else if (realRole === 'super_admin') {
+        router.push('/super-admin');
+      } else {
+        router.push('/student');
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err?.message || 'An unexpected error occurred. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] flex items-center justify-center p-4">
-      <div className="glass-card w-full max-w-lg p-8 rounded-3xl border border-white/10 shadow-2xl">
+      <div className="glass-card w-full max-w-md p-8 sm:p-10 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-xl">
         {/* Header */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center mb-3 shadow-lg">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center mb-4 shadow-xl shadow-[#6C63FF]/30">
             <span className="text-white font-black text-3xl">S</span>
           </div>
           <h1 className="text-white text-3xl font-extrabold tracking-tight">Sparsh</h1>
-          <p className="text-white/60 text-sm mt-1">Accessible Education Platform for All</p>
-        </div>
-
-        {/* Role Selector Tabs */}
-        <div className="mb-6">
-          <label className="text-white/80 text-xs font-bold uppercase tracking-wider mb-2 block text-center">
-            Select Your Role Dashboard
-          </label>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 p-1.5 bg-black/30 rounded-2xl border border-white/10">
-            {ROLES.map(role => {
-              const active = selectedRole === role.id;
-              return (
-                <button
-                  key={role.id}
-                  type="button"
-                  onClick={() => setSelectedRole(role.id)}
-                  className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all ${active
-                    ? 'bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] text-white font-bold shadow-lg scale-105'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}
-                >
-                  <span className="text-lg">{role.icon}</span>
-                  <span className="text-[10px] mt-0.5 truncate w-full text-center font-medium">{role.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 1-Click Demo Accounts */}
-        <div className="mb-6 p-3 bg-white/5 rounded-2xl border border-white/10">
-          <p className="text-white/50 text-[10px] font-bold uppercase tracking-wider mb-2 text-center">
-            ⚡ 1-Click Quick Demo Login
+          <p className="text-white/60 text-sm mt-1 text-center">
+            Sign in to your inclusive education account
           </p>
-          <div className="flex flex-wrap gap-1.5 justify-center">
-            {DEMO_ACCOUNTS.map(demo => (
-              <button
-                key={demo.role}
-                type="button"
-                onClick={() => handleDemoFill(demo)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${selectedRole === demo.role
-                  ? 'bg-[#6C63FF]/30 border-[#6C63FF] text-white'
-                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                  }`}
-              >
-                {demo.label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-sm flex items-start gap-3">
+            <span className="text-base leading-none mt-0.5">⚠️</span>
+            <div className="flex-1">{error}</div>
+          </div>
+        )}
+
+        {/* Production Sign In Form */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           <div>
-            <label className="text-white/80 text-sm mb-1 block font-medium">Email Address</label>
+            <label className="text-white/80 text-sm mb-1.5 block font-medium">Email Address</label>
             <input
               {...register('email')}
               type="email"
-              placeholder="you@example.com"
-              className="glass-input w-full p-3 text-sm text-white rounded-xl focus:border-[#6C63FF] focus:outline-none"
+              autoComplete="email"
+              placeholder="name@school.edu or name@example.com"
+              className="glass-input w-full p-3.5 text-sm text-white rounded-xl focus:border-[#6C63FF] focus:outline-none transition border border-white/10 bg-white/5"
               aria-label="Email address"
             />
-            {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message as string}</p>}
+            {errors.email && <p className="text-red-400 text-xs mt-1.5">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label className="text-white/80 text-sm mb-1 block font-medium">Password</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-white/80 text-sm font-medium">Password</label>
+            </div>
             <input
               {...register('password')}
               type="password"
+              autoComplete="current-password"
               placeholder="••••••••"
-              className="glass-input w-full p-3 text-sm text-white rounded-xl focus:border-[#6C63FF] focus:outline-none"
+              className="glass-input w-full p-3.5 text-sm text-white rounded-xl focus:border-[#6C63FF] focus:outline-none transition border border-white/10 bg-white/5"
               aria-label="Password"
             />
-            {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password.message as string}</p>}
+            {errors.password && <p className="text-red-400 text-xs mt-1.5">{errors.password.message}</p>}
           </div>
-
-          {error && <p className="text-red-400 text-sm bg-red-500/10 rounded-lg p-3 border border-red-500/20">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white font-bold text-base hover:opacity-90 transition shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white font-bold text-base hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-[#6C63FF]/30 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
-            <span>{ROLES.find(r => r.id === selectedRole)?.icon}</span>
-            <span>{loading ? 'Signing in...' : `Sign In to ${ROLES.find(r => r.id === selectedRole)?.label} Dashboard`}</span>
+            {loading ? (
+              <>
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Verifying credentials...</span>
+              </>
+            ) : (
+              <span>Sign In</span>
+            )}
           </button>
         </form>
 
-        <div className="mt-6 text-center space-y-2">
-          <a href="/register" className="text-[#00C9A7] text-xs font-semibold hover:underline">
-            New to Sparsh? Create Account
-          </a>
+        {/* Footer Links */}
+        <div className="mt-8 pt-6 border-t border-white/10 text-center">
+          <p className="text-white/60 text-sm">
+            Don&apos;t have an account yet?{' '}
+            <Link href="/register" className="text-[#00C9A7] font-semibold hover:underline">
+              Create an Account
+            </Link>
+          </p>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ const registerSchema = z.object({
   email:               z.string().email('Enter a valid email'),
   password:            z.string().min(8, 'Minimum 8 characters'),
   confirm_password:    z.string(),
-  role:                z.enum(['student', 'teacher']),
+  role:                z.enum(['student', 'teacher', 'institution_admin', 'ngo_admin']),
   disability_type:     z.enum(['visual', 'hearing', 'both', 'deafblind', 'none']),
   language_preference: z.string().default('hi'),
   institution_name:    z.string().min(2, 'Enter your institution / NGO name'),
@@ -55,6 +55,8 @@ export default function RegisterPage() {
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
+          role: data.role,
+          full_name: data.full_name,
           disability_type: data.disability_type,
           language_preference: data.language_preference,
           grade: data.role === 'student' ? data.grade : null,
@@ -114,7 +116,9 @@ export default function RegisterPage() {
             <label className="text-white/80 text-sm mb-1 block">I am a</label>
             <select {...register('role')} className="glass-input w-full bg-transparent appearance-none">
               <option value="student" className="bg-[#24243e]">Student</option>
-              <option value="teacher" className="bg-[#24243e]">Teacher</option>
+              <option value="teacher" className="bg-[#24243e]">Teacher / Educator</option>
+              <option value="institution_admin" className="bg-[#24243e]">School / Institution Admin</option>
+              <option value="ngo_admin" className="bg-[#24243e]">NGO Admin</option>
             </select>
           </div>
 
