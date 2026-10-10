@@ -32,11 +32,11 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
   const [camOff, setCamOff] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
-  
+
   // Camera Selection
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
-  
+
   // Real-time Avatar Queue
   const [islQueue, setIslQueue] = useState<string[]>([]);
   const [isProcessingCaption, setIsProcessingCaption] = useState(false);
@@ -101,9 +101,9 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous    = true;   // keep listening
+    recognition.continuous = true;   // keep listening
     recognition.interimResults = false;  // only fire on final sentence
-    recognition.lang           = 'en-IN'; // Indian English
+    recognition.lang = 'en-IN'; // Indian English
     recognition.maxAlternatives = 1;
 
     recognition.onresult = async (event: any) => {
@@ -111,7 +111,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
       console.log('[ISL STT Original]', transcript);
 
       setIsProcessingCaption(true);
-      
+
       try {
         // Send spoken text to AI backend for ISL Grammar Simplification
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/isl-grammar`, {
@@ -119,7 +119,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: transcript }),
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           if (data.isl_text && data.isl_text.length > 0) {
@@ -154,69 +154,69 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
     // Restart on end to keep listening continuously
     recognition.onend = () => {
       if (callState === 'joined' && islEnabled) {
-        try { recognition.start(); } catch (_) {}
+        try { recognition.start(); } catch (_) { }
       }
     };
 
     try { recognition.start(); } catch (e) { console.warn('[ISL] STT start error', e); }
 
     return () => {
-      try { recognition.abort(); } catch (_) {}
+      try { recognition.abort(); } catch (_) { }
     };
   }, [islEnabled, callState]);
 
   const toggleVisionAI = () => {
     if (visionActive) {
-       setVisionActive(false);
-       clearInterval(visionIntervalRef.current);
-       setVisionPhrase('');
+      setVisionActive(false);
+      clearInterval(visionIntervalRef.current);
+      setVisionPhrase('');
     } else {
-       setVisionActive(true);
-       
-       visionIntervalRef.current = setInterval(async () => {
-         if (!localVideoRef.current) return;
-         // Find the video element created by Agora
-         const videoEl = localVideoRef.current.querySelector('video');
-         if (!videoEl || videoEl.readyState !== 4) return;
-         
-         try {
-           const canvas = document.createElement('canvas');
-           canvas.width = 224;
-           canvas.height = 224;
-           const ctx = canvas.getContext('2d');
-           if (!ctx) return;
-           ctx.drawImage(videoEl, 0, 0, 224, 224);
-           const b64 = canvas.toDataURL('image/jpeg', 0.8);
-           
-           const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/predict-sign`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ image: b64 }),
-           });
-           
-           if (res.ok) {
-             const data = await res.json();
-             if (data.sign && data.is_confident) {
-               // Capitalize sign name and format it
-               const detectedWord = data.sign.replace(/_/g, ' ').toUpperCase();
-               setVisionPhrase(detectedWord);
-               
-               // Let the avatar mirror the detected sign
-               setIslQueue(prev => [...prev, detectedWord.toLowerCase()]);
-               
-               if ('speechSynthesis' in window) {
-                  const utterance = new SpeechSynthesisUtterance(detectedWord);
-                  utterance.rate = 1.0;
-                  window.speechSynthesis.speak(utterance);
-               }
-               
-               setTimeout(() => setVisionPhrase(''), 3000);
-             }
-           }
-         } catch (err) {
-           console.error("[Vision AI] Error predicting sign:", err);
-         }
-       }, 2000); // Poll every 2 seconds
+      setVisionActive(true);
+
+      visionIntervalRef.current = setInterval(async () => {
+        if (!localVideoRef.current) return;
+        // Find the video element created by Agora
+        const videoEl = localVideoRef.current.querySelector('video');
+        if (!videoEl || videoEl.readyState !== 4) return;
+
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 224;
+          canvas.height = 224;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(videoEl, 0, 0, 224, 224);
+          const b64 = canvas.toDataURL('image/jpeg', 0.8);
+
+          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/predict-sign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: b64 }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.sign && data.is_confident) {
+              // Capitalize sign name and format it
+              const detectedWord = data.sign.replace(/_/g, ' ').toUpperCase();
+              setVisionPhrase(detectedWord);
+
+              // Let the avatar mirror the detected sign
+              setIslQueue(prev => [...prev, detectedWord.toLowerCase()]);
+
+              if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(detectedWord);
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
+              }
+
+              setTimeout(() => setVisionPhrase(''), 3000);
+            }
+          }
+        } catch (err) {
+          console.error("[Vision AI] Error predicting sign:", err);
+        }
+      }, 2000); // Poll every 2 seconds
     }
   };
 
@@ -231,7 +231,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
     setIslQueue(prevQueue => {
       const newQueue = [...prevQueue];
       if (newQueue[0] === completedWord) {
-         newQueue.shift(); // Remove the finished word to trigger the next queue item
+        newQueue.shift(); // Remove the finished word to trigger the next queue item
       }
       return newQueue;
     });
@@ -284,7 +284,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
       localVideoTrackRef.current?.close();
       localVideoTrackRef.current?.stop();
       await clientRef.current?.leave();
-    } catch (_) {}
+    } catch (_) { }
     localAudioTrackRef.current = null;
     localVideoTrackRef.current = null;
     setRemoteUsers([]);
@@ -366,20 +366,20 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
         client.on('user-left', (user: any) => setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid)));
 
         if (canceled) return;
-        
+
         let audioTrack = null;
         let videoTrack = null;
-        
+
         try {
           audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         } catch (e) {
           console.warn("Could not initialize microphone:", e);
           setMicMuted(true);
         }
-        
+
         try {
           if (selectedCameraId !== 'none') {
-            videoTrack = await AgoraRTC.createCameraVideoTrack({ 
+            videoTrack = await AgoraRTC.createCameraVideoTrack({
               encoderConfig: '720p_1',
               cameraId: selectedCameraId
             });
@@ -389,10 +389,10 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
           setCamOff(true);
         }
 
-        if (canceled) { 
-          audioTrack?.close(); 
-          videoTrack?.close(); 
-          return; 
+        if (canceled) {
+          audioTrack?.close();
+          videoTrack?.close();
+          return;
         }
 
         localAudioTrackRef.current = audioTrack;
@@ -400,7 +400,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
 
         // 2. Now join network channel
         await client.join(appId, channelName, null, uid || null);
-        if (canceled) { await client.leave().catch(() => {}); return; }
+        if (canceled) { await client.leave().catch(() => { }); return; }
 
         // 3. Publish tracks safely
         const tracksToPublish = [audioTrack, videoTrack].filter(Boolean) as any[];
@@ -415,7 +415,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
             }
           }
         }
-        
+
         if (!canceled) setCallState('joined');
 
       } catch (err: any) {
@@ -513,7 +513,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
               )}
               {/* Camera Switcher Dropdown */}
               {cameras.length > 1 && (
-                <select 
+                <select
                   className="bg-white/10 text-white text-xs px-2 py-1.5 rounded-lg outline-none cursor-pointer max-w-[120px] truncate"
                   value={selectedCameraId}
                   onChange={(e) => switchCamera(e.target.value)}
@@ -561,7 +561,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
                   <p className="text-white/60 text-sm mb-4">Click the 🔒 lock icon in your browser address bar → Allow Camera and Microphone → Refresh the page.</p>
                 </>
               )}
-              {!['TOKEN_REQUIRED','PERMISSION_DENIED','INVALID_APP_ID'].includes(errorMsg) && (
+              {!['TOKEN_REQUIRED', 'PERMISSION_DENIED', 'INVALID_APP_ID'].includes(errorMsg) && (
                 <>
                   <h3 className="text-white font-bold mb-2">Connection Error</h3>
                   <p className="text-white/60 text-sm mb-4">{errorMsg}</p>
@@ -573,10 +573,10 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
 
         {callState === 'joined' && (
           <div className={`grid gap-3 h-full w-full place-content-center p-2
-            ${remoteUsers.length === 0 ? 'grid-cols-1 max-w-4xl mx-auto' : 
-              remoteUsers.length <= 3 ? 'grid-cols-1 md:grid-cols-2' : 
-              remoteUsers.length <= 8 ? 'grid-cols-2 md:grid-cols-3' : 
-              'grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
+            ${remoteUsers.length === 0 ? 'grid-cols-1 max-w-4xl mx-auto' :
+              remoteUsers.length <= 3 ? 'grid-cols-1 md:grid-cols-2' :
+                remoteUsers.length <= 8 ? 'grid-cols-2 md:grid-cols-3' :
+                  'grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
             }`}>
             {/* Local Video */}
             <div className="relative bg-[#111] rounded-xl overflow-hidden shadow-lg border border-white/10" style={{ minHeight: remoteUsers.length === 0 ? '400px' : '200px', maxHeight: '100%' }}>
@@ -603,15 +603,15 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
               )}
               {visionActive && !camOff && (
                 <div className="absolute inset-0 border-[2px] border-[#6C63FF]/50 m-2 rounded-xl flex items-center justify-center pointer-events-none">
-                   <div className="absolute w-full h-full">
-                      <div className="absolute top-[30%] left-[45%] w-1.5 h-1.5 bg-[#00C9A7] rounded-full shadow-[0_0_8px_#00C9A7] animate-pulse" />
-                      <div className="absolute top-[40%] left-[30%] w-1.5 h-1.5 bg-[#00C9A7] rounded-full shadow-[0_0_8px_#00C9A7] animate-pulse delay-100" />
-                      <div className="absolute top-[40%] left-[60%] w-1.5 h-1.5 bg-[#00C9A7] rounded-full shadow-[0_0_8px_#00C9A7] animate-pulse delay-200" />
-                   </div>
-                   <span className="bg-black/60 backdrop-blur-sm text-[#00C9A7] text-[8px] font-mono px-2 py-0.5 rounded absolute top-2 right-2 flex items-center gap-1 border border-[#00C9A7]/30">
-                     <span className="w-1 h-1 bg-[#00C9A7] rounded-full animate-ping" />
-                     VISION AI
-                   </span>
+                  <div className="absolute w-full h-full">
+                    <div className="absolute top-[30%] left-[45%] w-1.5 h-1.5 bg-[#00C9A7] rounded-full shadow-[0_0_8px_#00C9A7] animate-pulse" />
+                    <div className="absolute top-[40%] left-[30%] w-1.5 h-1.5 bg-[#00C9A7] rounded-full shadow-[0_0_8px_#00C9A7] animate-pulse delay-100" />
+                    <div className="absolute top-[40%] left-[60%] w-1.5 h-1.5 bg-[#00C9A7] rounded-full shadow-[0_0_8px_#00C9A7] animate-pulse delay-200" />
+                  </div>
+                  <span className="bg-black/60 backdrop-blur-sm text-[#00C9A7] text-[8px] font-mono px-2 py-0.5 rounded absolute top-2 right-2 flex items-center gap-1 border border-[#00C9A7]/30">
+                    <span className="w-1 h-1 bg-[#00C9A7] rounded-full animate-ping" />
+                    VISION AI
+                  </span>
                 </div>
               )}
             </div>
@@ -646,22 +646,22 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
 
         {/* Global Vision AI Text Overlay */}
         {visionPhrase && (
-           <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in fade-in slide-in-from-top-4">
-             <div className="bg-[#1e1e32]/90 backdrop-blur-md px-6 py-3 rounded-2xl border border-[#6C63FF]/50 shadow-[0_0_30px_rgba(108,99,255,0.4)] flex items-center gap-4">
-               <span className="text-3xl animate-bounce">🤟</span>
-               <div>
-                 <p className="text-[#00C9A7] text-[10px] font-bold uppercase tracking-wider mb-0.5">ISL Vision Translation</p>
-                 <p className="text-white font-bold text-xl">"{visionPhrase}"</p>
-               </div>
-               <span className="text-2xl ml-2 opacity-50">🔊</span>
-             </div>
-           </div>
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in fade-in slide-in-from-top-4">
+            <div className="bg-[#1e1e32]/90 backdrop-blur-md px-6 py-3 rounded-2xl border border-[#6C63FF]/50 shadow-[0_0_30px_rgba(108,99,255,0.4)] flex items-center gap-4">
+              <span className="text-3xl animate-bounce">🤟</span>
+              <div>
+                <p className="text-[#00C9A7] text-[10px] font-bold uppercase tracking-wider mb-0.5">ISL Vision Translation</p>
+                <p className="text-white font-bold text-xl">&quot;{visionPhrase}&quot;</p>
+              </div>
+              <span className="text-2xl ml-2 opacity-50">🔊</span>
+            </div>
+          </div>
         )}
 
         {/* Real-Time 3D ISL Avatar */}
         {callState === 'joined' && islEnabled && (
           <div className="absolute bottom-4 right-4 z-50 w-[220px] h-[300px] md:w-[280px] md:h-[380px] transition-all transform duration-500 ease-out animate-in slide-in-from-right-8 fade-in">
-            <SignAvatarOverlay 
+            <SignAvatarOverlay
               queue={islQueue}
               isProcessing={isProcessingCaption}
               onSignComplete={handleSignComplete}

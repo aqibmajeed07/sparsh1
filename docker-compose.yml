@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # ── FastAPI Backend with Bundled Niral AI Model & Finger Tracking ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sparsh-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - ALLOWED_ORIGINS=*
+      - SUPABASE_URL=${SUPABASE_URL:-https://jxqazpfuzxkctfntxtzi.supabase.co}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SIGN_MODEL_PATH=/app/models/best_sign_model.pth
+      - LANDMARK_MODEL_PATH=/app/models/hand_landmarker.task
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Next.js 14 Frontend ──
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_URL: http://backend:8000
+        NEXT_PUBLIC_SUPABASE_URL: https://jxqazpfuzxkctfntxtzi.supabase.co
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cWF6cGZ1enhrY3RmbnR4dHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjk1OTIsImV4cCI6MjA5MjAwNTU5Mn0.v2mdZb4H0wuxGr0hcgu4gNw5pgp55d7CaUQzDqHCF1w
+    container_name: sparsh-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=https://jxqazpfuzxkctfntxtzi.supabase.co
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cWF6cGZ1enhrY3RmbnR4dHppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0Mjk1OTIsImV4cCI6MjA5MjAwNTU5Mn0.v2mdZb4H0wuxGr0hcgu4gNw5pgp55d7CaUQzDqHCF1w
+    depends_on:
+      backend:
+        condition: service_healthy

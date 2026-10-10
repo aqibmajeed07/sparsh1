@@ -18,22 +18,22 @@ const SignAvatarOverlay = dynamic(
 );
 
 const ISL_SIGNS = [
-  { word: 'hello',      display: 'Hello',      hindi: 'नमस्ते',     category: 'common',    difficulty: 'beginner',     mastered: true  },
-  { word: 'thank',      display: 'Thank You',  hindi: 'धन्यवाद',    category: 'common',    difficulty: 'beginner',     mastered: true  },
-  { word: 'please',     display: 'Please',     hindi: 'कृपया',      category: 'common',    difficulty: 'beginner',     mastered: false },
-  { word: 'welcome',    display: 'Welcome',    hindi: 'स्वागत',     category: 'common',    difficulty: 'beginner',     mastered: false },
-  { word: 'yes',        display: 'Yes',        hindi: 'हाँ',        category: 'common',    difficulty: 'beginner',     mastered: true  },
-  { word: 'no',         display: 'No',         hindi: 'नहीं',       category: 'common',    difficulty: 'beginner',     mastered: false },
-  { word: 'you',        display: 'You',        hindi: 'आप',         category: 'common',    difficulty: 'beginner',     mastered: true  },
-  { word: 'understand', display: 'Understand', hindi: 'समझना',      category: 'common',    difficulty: 'intermediate', mastered: false },
-  { word: 'attention',  display: 'Attention',  hindi: 'ध्यान',      category: 'common',    difficulty: 'beginner',     mastered: false },
-  { word: 'book',       display: 'Book',       hindi: 'किताब',      category: 'classroom', difficulty: 'beginner',     mastered: false },
-  { word: 'open',       display: 'Open',       hindi: 'खोलें',      category: 'classroom', difficulty: 'beginner',     mastered: false },
-  { word: 'teacher',    display: 'Teacher',    hindi: 'शिक्षक',     category: 'classroom', difficulty: 'beginner',     mastered: true  },
-  { word: 'student',    display: 'Student',    hindi: 'विद्यार्थी',  category: 'classroom', difficulty: 'beginner',     mastered: false },
-  { word: 'class',      display: 'Class',      hindi: 'कक्षा',      category: 'classroom', difficulty: 'beginner',     mastered: false },
-  { word: 'question',   display: 'Question',   hindi: 'सवाल',       category: 'classroom', difficulty: 'intermediate', mastered: false },
-  { word: 'answer',     display: 'Answer',     hindi: 'जवाब',       category: 'classroom', difficulty: 'intermediate', mastered: false },
+  { word: 'hello', display: 'Hello', hindi: 'नमस्ते', category: 'common', difficulty: 'beginner', mastered: true },
+  { word: 'thank', display: 'Thank You', hindi: 'धन्यवाद', category: 'common', difficulty: 'beginner', mastered: true },
+  { word: 'please', display: 'Please', hindi: 'कृपया', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'welcome', display: 'Welcome', hindi: 'स्वागत', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'yes', display: 'Yes', hindi: 'हाँ', category: 'common', difficulty: 'beginner', mastered: true },
+  { word: 'no', display: 'No', hindi: 'नहीं', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'you', display: 'You', hindi: 'आप', category: 'common', difficulty: 'beginner', mastered: true },
+  { word: 'understand', display: 'Understand', hindi: 'समझना', category: 'common', difficulty: 'intermediate', mastered: false },
+  { word: 'attention', display: 'Attention', hindi: 'ध्यान', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'book', display: 'Book', hindi: 'किताब', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'open', display: 'Open', hindi: 'खोलें', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'teacher', display: 'Teacher', hindi: 'शिक्षक', category: 'classroom', difficulty: 'beginner', mastered: true },
+  { word: 'student', display: 'Student', hindi: 'विद्यार्थी', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'class', display: 'Class', hindi: 'कक्षा', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'question', display: 'Question', hindi: 'सवाल', category: 'classroom', difficulty: 'intermediate', mastered: false },
+  { word: 'answer', display: 'Answer', hindi: 'जवाब', category: 'classroom', difficulty: 'intermediate', mastered: false },
 ];
 
 const CATEGORIES = ['All', 'common', 'classroom'];
@@ -99,8 +99,9 @@ export default function SignLabPage() {
 
   const [webcamActive, setWebcamActive] = useState(false);
   const [visionTranslation, setVisionTranslation] = useState('');
-  const visionSimRef = useRef<any>(null);
   const webcamRef = useRef<Webcam>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [fingerTracking, setFingerTracking] = useState<any>(null);
 
   // ── Media Tab State ──
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -229,45 +230,45 @@ export default function SignLabPage() {
     } else {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) {
-         alert('Browser not supported for STT. Please use Chrome or Edge.');
-         return;
+        alert('Browser not supported for STT. Please use Chrome or Edge.');
+        return;
       }
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = selectedLang;
-      
+
       recognition.onresult = async (e: any) => {
         const finalResults = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
         setLiveTranscript(finalResults);
-        
+
         // If the current result is final, send to backend
         const lastResult = e.results[e.results.length - 1];
         if (lastResult.isFinal) {
-           try {
-             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/isl-grammar`, {
-               method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: lastResult[0].transcript, lang: selectedLang})
-             });
-             const data = await res.json();
-             if (data.isl_text && data.isl_text.length > 0) {
-                setTranslatorQueue(prev => {
-                   const fresh = data.isl_text.filter((t: string) => !prev.includes(t));
-                   return [...prev, ...fresh];
-                });
-             }
-           } catch(e) {}
+          try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/isl-grammar`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: lastResult[0].transcript, lang: selectedLang })
+            });
+            const data = await res.json();
+            if (data.isl_text && data.isl_text.length > 0) {
+              setTranslatorQueue(prev => {
+                const fresh = data.isl_text.filter((t: string) => !prev.includes(t));
+                return [...prev, ...fresh];
+              });
+            }
+          } catch (e) { }
         }
       };
 
       recognition.onend = () => {
-         // Auto-restart if we haven't manually stopped
-         if (isListeningRef.current) {
-            try { recognition.start(); } catch(e) {}
-         }
+        // Auto-restart if we haven't manually stopped
+        if (isListeningRef.current) {
+          try { recognition.start(); } catch (e) { }
+        }
       };
 
       recognition.onerror = (e: any) => {
-         if (e.error !== 'no-speech') console.warn('STT Error:', e.error);
+        if (e.error !== 'no-speech') console.warn('STT Error:', e.error);
       };
 
       try {
@@ -287,55 +288,124 @@ export default function SignLabPage() {
     setTranslatorQueue(prev => prev.slice(1));
   }, []);
 
+  const drawSkeleton = useCallback((landmarks: Array<{ x: number; y: number; z: number }>, canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const CONNECTIONS = [
+      [0, 1], [1, 2], [2, 3], [3, 4],       // Thumb
+      [0, 5], [5, 6], [6, 7], [7, 8],       // Index
+      [0, 9], [9, 10], [10, 11], [11, 12],  // Middle
+      [0, 13], [13, 14], [14, 15], [15, 16],// Ring
+      [0, 17], [17, 18], [18, 19], [19, 20],// Pinky
+      [5, 9], [9, 13], [13, 17],            // Palm
+    ];
+
+    // Mirror horizontal coordinates to align with mirrored webcam
+    const pts = landmarks.map(lm => ({
+      x: (1 - lm.x) * width,
+      y: lm.y * height,
+    }));
+
+    // Draw connecting bones
+    CONNECTIONS.forEach(([i, j]) => {
+      if (!pts[i] || !pts[j]) return;
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x, pts[i].y);
+      ctx.lineTo(pts[j].x, pts[j].y);
+      ctx.strokeStyle = '#00C9A7';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    });
+
+    // Draw joints
+    pts.forEach((p, idx) => {
+      const isTip = [4, 8, 12, 16, 20].includes(idx);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, isTip ? 6 : 4, 0, 2 * Math.PI);
+      ctx.fillStyle = isTip ? '#FF6B6B' : '#6C63FF';
+      ctx.fill();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  }, []);
+
   const toggleWebcam = () => {
     if (webcamActive) {
-       setWebcamActive(false);
-       clearInterval(visionSimRef.current);
-       setVisionTranslation('');
+      setWebcamActive(false);
+      clearInterval(visionSimRef.current);
+      setVisionTranslation('');
+      setFingerTracking(null);
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
     } else {
-       setWebcamActive(true);
-       setVisionTranslation('Warming up Niral AI Model...');
-       
-       // Real-time inference using Sparsh AI Backend + Niral AI Model
-       visionSimRef.current = setInterval(async () => {
-          if (!webcamRef.current) return;
-          const imageSrc = webcamRef.current.getScreenshot();
-          if (!imageSrc) return;
-          
-          try {
-             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/predict-sign`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: imageSrc })
-             });
-             const data = await res.json();
-             
-             if (data.sign && data.is_confident) {
-                // Formatting class names (e.g., '01_palm' -> 'Palm', 'A' -> 'A')
-                let displaySign = data.sign.replace(/^\d+_/, '').replace(/_/g, ' ');
-                displaySign = displaySign.charAt(0).toUpperCase() + displaySign.slice(1);
-                
-                setVisionTranslation(`Sign detected: ${displaySign} (${data.confidence.toFixed(1)}%)`);
-                
-                // Add sign to avatar if it matches dictionary!
-                setTranslatorQueue(prev => {
-                   const token = displaySign.toLowerCase();
-                   // Avoid spamming the same sign
-                   if (prev[prev.length - 1] === token) return prev;
-                   
-                   // Speak the sign out loud!
-                   playTTS(displaySign, selectedLang);
-                   
-                   return [...prev, token];
-                });
-             } else if (data.message) {
-                setVisionTranslation(data.message);
-             }
-          } catch (e) {
-             console.error("Sign prediction error:", e);
-             setVisionTranslation('AI Backend disconnected');
+      setWebcamActive(true);
+      setVisionTranslation('Warming up Niral AI Model...');
+
+      // Real-time inference using Sparsh AI Backend + Niral AI Model
+      visionSimRef.current = setInterval(async () => {
+        if (!webcamRef.current) return;
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (!imageSrc) return;
+
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/predict-sign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: imageSrc })
+          });
+          const data = await res.json();
+
+          if (data.finger_tracking) {
+            setFingerTracking(data.finger_tracking);
+            if (canvasRef.current && data.finger_tracking.landmarks) {
+              if (canvasRef.current.width !== canvasRef.current.clientWidth) {
+                canvasRef.current.width = canvasRef.current.clientWidth;
+                canvasRef.current.height = canvasRef.current.clientHeight;
+              }
+              drawSkeleton(data.finger_tracking.landmarks, canvasRef.current);
+            }
+          } else {
+            setFingerTracking(null);
+            if (canvasRef.current) {
+              const ctx = canvasRef.current.getContext('2d');
+              if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            }
           }
-       }, 500); // 2 FPS for smooth realtime feeling without overloading backend
+
+          if (data.sign && data.is_confident) {
+            // Formatting class names (e.g., '01_palm' -> 'Palm', 'A' -> 'A')
+            let displaySign = data.sign.replace(/^\d+_/, '').replace(/_/g, ' ');
+            displaySign = displaySign.charAt(0).toUpperCase() + displaySign.slice(1);
+
+            setVisionTranslation(`Sign detected: ${displaySign} (${data.confidence.toFixed(1)}%)`);
+
+            // Add sign to avatar if it matches dictionary!
+            setTranslatorQueue(prev => {
+              const token = displaySign.toLowerCase();
+              // Avoid spamming the same sign
+              if (prev[prev.length - 1] === token) return prev;
+
+              // Speak the sign out loud!
+              playTTS(displaySign, selectedLang);
+
+              return [...prev, token];
+            });
+          } else if (data.message) {
+            setVisionTranslation(data.message);
+          }
+        } catch (e) {
+          console.error("Sign prediction error:", e);
+          setVisionTranslation('AI Backend disconnected');
+        }
+      }, 500); // 2 FPS for smooth realtime feeling without overloading backend
     }
   };
 
@@ -343,14 +413,14 @@ export default function SignLabPage() {
     if ('speechSynthesis' in window) {
       // Cancel any ongoing speech so it doesn't queue up a massive backlog
       window.speechSynthesis.cancel();
-      
+
       const utterance = new SpeechSynthesisUtterance(text);
-      
+
       // Fallback to English if the specific regional language voice isn't available
       utterance.lang = langCode || 'en-IN';
       utterance.rate = 0.9; // Slightly slower for clarity
       utterance.pitch = 1.1; // Slightly friendlier pitch
-      
+
       window.speechSynthesis.speak(utterance);
     }
   };
@@ -388,16 +458,15 @@ export default function SignLabPage() {
       <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit">
         {([
           { id: 'dictionary', label: '📖 Sign Dictionary', icon: '📖' },
-          { id: 'document',   label: '📄 AI Document Signer', icon: '📄' },
+          { id: 'document', label: '📄 AI Document Signer', icon: '📄' },
           { id: 'live-translator', label: '🎙️ Live AI Translator', icon: '🎙️' },
           { id: 'media', label: '🎬 Media to ISL', icon: '🎬' },
         ] as { id: TabId; label: string; icon: string }[]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
                 ? 'bg-gradient-to-r from-[#6C63FF] to-[#4F46E5] text-white shadow'
                 : 'text-white/50 hover:text-white/80'
-            }`}>
+              }`}>
             {tab.label}
           </button>
         ))}
@@ -474,9 +543,8 @@ export default function SignLabPage() {
               <div className="flex flex-wrap gap-1.5 mb-4">
                 {CATEGORIES.map(cat => (
                   <button key={cat} onClick={() => setCategory(cat)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${
-                      category === cat ? 'bg-[#6C63FF] text-white' : 'bg-white/5 text-white/50 hover:text-white'
-                    }`}>
+                    className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${category === cat ? 'bg-[#6C63FF] text-white' : 'bg-white/5 text-white/50 hover:text-white'
+                      }`}>
                     {cat}
                   </button>
                 ))}
@@ -484,11 +552,10 @@ export default function SignLabPage() {
               <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
                 {filtered.map((sign, i) => (
                   <button key={i} onClick={() => selectSign(sign)}
-                    className={`w-full text-left p-3 rounded-xl transition flex items-center justify-between group ${
-                      selectedSign.word === sign.word
+                    className={`w-full text-left p-3 rounded-xl transition flex items-center justify-between group ${selectedSign.word === sign.word
                         ? 'bg-[#6C63FF]/20 border border-[#6C63FF]/30'
                         : 'bg-white/5 hover:bg-white/10'
-                    }`}>
+                      }`}>
                     <div>
                       <p className="text-white text-sm font-medium">{sign.display}</p>
                       <p className="text-white/40 text-xs">{sign.hindi}</p>
@@ -511,10 +578,10 @@ export default function SignLabPage() {
               <div className="space-y-2 text-xs">
                 {[
                   { label: 'Signs Available', value: `${ISL_SIGNS.length} signs` },
-                  { label: 'Interpolation',   value: 'Smoothstep SLERP' },
-                  { label: 'Animation Mode',  value: 'Procedural' },
+                  { label: 'Interpolation', value: 'Smoothstep SLERP' },
+                  { label: 'Animation Mode', value: 'Procedural' },
                   { label: 'STT (Live Class)', value: 'Web Speech API' },
-                  { label: 'Doc AI',          value: 'Sparsh AI Backend' },
+                  { label: 'Doc AI', value: 'Sparsh AI Backend' },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between">
                     <span className="text-white/40">{label}</span>
@@ -549,13 +616,12 @@ export default function SignLabPage() {
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleFileDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
-                  dragOver
+                className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragOver
                     ? 'border-[#6C63FF] bg-[#6C63FF]/10 scale-[1.01]'
                     : file
-                    ? 'border-[#00C9A7]/50 bg-[#00C9A7]/5'
-                    : 'border-white/15 hover:border-[#6C63FF]/40 hover:bg-white/3'
-                }`}>
+                      ? 'border-[#00C9A7]/50 bg-[#00C9A7]/5'
+                      : 'border-white/15 hover:border-[#6C63FF]/40 hover:bg-white/3'
+                  }`}>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -631,13 +697,12 @@ export default function SignLabPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {islTokens.map((t, i) => (
                       <span key={i}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
-                          i === currentTokenIdx && isSigning
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${i === currentTokenIdx && isSigning
                             ? 'bg-[#6C63FF] border-[#6C63FF] text-white scale-110'
                             : i < currentTokenIdx
-                            ? 'bg-[#00C9A7]/15 border-[#00C9A7]/30 text-[#00C9A7]'
-                            : 'bg-white/5 border-white/10 text-white/60'
-                        }`}>
+                              ? 'bg-[#00C9A7]/15 border-[#00C9A7]/30 text-[#00C9A7]'
+                              : 'bg-white/5 border-white/10 text-white/60'
+                          }`}>
                         {i === currentTokenIdx && isSigning && '▶ '}
                         {t}
                       </span>
@@ -770,158 +835,180 @@ export default function SignLabPage() {
           {/* Left Panel: Mode Selector & Controls */}
           <div className="space-y-4">
             <div className="glass-card p-5 border border-[#00C9A7]/20">
-               <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-white font-bold flex items-center gap-2">
-                    <span className="p-1.5 rounded-lg bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white text-xs">AI</span>
-                    Translator Mode
-                 </h3>
-                 <select 
-                   value={selectedLang} 
-                   onChange={(e) => { 
-                     setSelectedLang(e.target.value); 
-                     if (isListening) { toggleListening(); setTimeout(toggleListening, 100); }
-                     if (webcamActive) { toggleWebcam(); setTimeout(toggleWebcam, 100); }
-                   }}
-                   className="bg-black/40 border border-[#00C9A7]/30 text-[#00C9A7] text-xs font-bold rounded-lg px-3 py-1.5 outline-none appearance-none cursor-pointer hover:bg-black/60 transition"
-                 >
-                    <option value="en-IN">🇺🇸 English</option>
-                    <option value="hi-IN">🇮🇳 Hindi (हिंदी)</option>
-                    <option value="bn-IN">🇮🇳 Bengali (বাংলা)</option>
-                    <option value="ta-IN">🇮🇳 Tamil (தமிழ்)</option>
-                    <option value="te-IN">🇮🇳 Telugu (తెలుగు)</option>
-                    <option value="mr-IN">🇮🇳 Marathi (मराठी)</option>
-                 </select>
-               </div>
-               <div className="flex gap-2">
-                 <button onClick={() => { setTranslatorMode('speech-to-isl'); if (webcamActive) toggleWebcam(); }} className={`flex-1 py-3 rounded-xl font-medium text-sm transition ${translatorMode === 'speech-to-isl' ? 'bg-[#00C9A7] text-white shadow-lg' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
-                   🗣️ Speech → ISL Avatar
-                 </button>
-                 <button onClick={() => { setTranslatorMode('isl-to-speech'); if (isListening) toggleListening(); }} className={`flex-1 py-3 rounded-xl font-medium text-sm transition ${translatorMode === 'isl-to-speech' ? 'bg-[#6C63FF] text-white shadow-lg' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
-                   🤟 ISL → Speech (AI)
-                 </button>
-               </div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-white font-bold flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white text-xs">AI</span>
+                  Translator Mode
+                </h3>
+                <select
+                  value={selectedLang}
+                  onChange={(e) => {
+                    setSelectedLang(e.target.value);
+                    if (isListening) { toggleListening(); setTimeout(toggleListening, 100); }
+                    if (webcamActive) { toggleWebcam(); setTimeout(toggleWebcam, 100); }
+                  }}
+                  className="bg-black/40 border border-[#00C9A7]/30 text-[#00C9A7] text-xs font-bold rounded-lg px-3 py-1.5 outline-none appearance-none cursor-pointer hover:bg-black/60 transition"
+                >
+                  <option value="en-IN">🇺🇸 English</option>
+                  <option value="hi-IN">🇮🇳 Hindi (हिंदी)</option>
+                  <option value="bn-IN">🇮🇳 Bengali (বাংলা)</option>
+                  <option value="ta-IN">🇮🇳 Tamil (தமிழ்)</option>
+                  <option value="te-IN">🇮🇳 Telugu (తెలుగు)</option>
+                  <option value="mr-IN">🇮🇳 Marathi (मराठी)</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setTranslatorMode('speech-to-isl'); if (webcamActive) toggleWebcam(); }} className={`flex-1 py-3 rounded-xl font-medium text-sm transition ${translatorMode === 'speech-to-isl' ? 'bg-[#00C9A7] text-white shadow-lg' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                  🗣️ Speech → ISL Avatar
+                </button>
+                <button onClick={() => { setTranslatorMode('isl-to-speech'); if (isListening) toggleListening(); }} className={`flex-1 py-3 rounded-xl font-medium text-sm transition ${translatorMode === 'isl-to-speech' ? 'bg-[#6C63FF] text-white shadow-lg' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                  🤟 ISL → Speech (AI)
+                </button>
+              </div>
             </div>
-            
+
             {translatorMode === 'speech-to-isl' && (
-               <div className="glass-card p-6 animate-in fade-in slide-in-from-bottom-4">
-                  <div className="flex justify-between items-start mb-4">
-                     <div>
-                        <h4 className="text-white font-semibold text-lg">Speak into Microphone</h4>
-                        <p className="text-white/50 text-sm">Sparsh AI will translate your speech into ISL grammar.</p>
-                     </div>
+              <div className="glass-card p-6 animate-in fade-in slide-in-from-bottom-4">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-white font-semibold text-lg">Speak into Microphone</h4>
+                    <p className="text-white/50 text-sm">Sparsh AI will translate your speech into ISL grammar.</p>
                   </div>
-                  
-                  <button onClick={toggleListening} className={`w-full mt-2 py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white shadow-xl'}`}>
-                     {isListening ? (
-                       <><span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" /> Stop Listening</>
-                     ) : (
-                       <>🎙️ Start Listening</>
-                     )}
-                  </button>
-                  
-                  <div className="mt-6 p-5 bg-black/40 rounded-xl border border-white/5 min-h-[120px]">
-                     <p className="text-white/40 text-xs uppercase mb-3 flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-[#00C9A7] animate-pulse' : 'bg-white/20'}`} />
-                        Live Transcript
-                     </p>
-                     <p className="text-white/80 text-base leading-relaxed">{liveTranscript || (isListening ? 'Listening...' : 'Waiting for speech...')}</p>
-                  </div>
-               </div>
+                </div>
+
+                <button onClick={toggleListening} className={`w-full mt-2 py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white shadow-xl'}`}>
+                  {isListening ? (
+                    <><span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" /> Stop Listening</>
+                  ) : (
+                    <>🎙️ Start Listening</>
+                  )}
+                </button>
+
+                <div className="mt-6 p-5 bg-black/40 rounded-xl border border-white/5 min-h-[120px]">
+                  <p className="text-white/40 text-xs uppercase mb-3 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-[#00C9A7] animate-pulse' : 'bg-white/20'}`} />
+                    Live Transcript
+                  </p>
+                  <p className="text-white/80 text-base leading-relaxed">{liveTranscript || (isListening ? 'Listening...' : 'Waiting for speech...')}</p>
+                </div>
+              </div>
             )}
 
             {translatorMode === 'isl-to-speech' && (
-               <div className="glass-card p-6 animate-in fade-in slide-in-from-bottom-4">
-                  <h4 className="text-white font-semibold mb-2 text-lg">Sign to Camera</h4>
-                  <p className="text-white/50 text-sm mb-6">Our Vision AI analyzes your signs and speaks them aloud. Perfect for asking questions in class.</p>
-                  
-                  <button onClick={toggleWebcam} className={`w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 ${webcamActive ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gradient-to-r from-[#6C63FF] to-[#4F46E5] text-white shadow-xl'}`}>
-                     {webcamActive ? (
-                        <><span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" /> Stop Camera</>
-                     ) : (
-                        <>📷 Start Vision AI</>
-                     )}
-                  </button>
-                  
-                  <div className="mt-6 p-5 bg-black/40 rounded-xl border border-white/5 min-h-[120px]">
-                     <p className="text-white/40 text-xs uppercase mb-3 flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${webcamActive ? 'bg-[#6C63FF] animate-pulse' : 'bg-white/20'}`} />
-                        AI Translation
-                     </p>
-                     {visionTranslation ? (
-                       <div className="flex justify-between items-start bg-[#6C63FF]/10 p-4 rounded-xl border border-[#6C63FF]/20 animate-in fade-in zoom-in-95">
-                         <p className="text-white font-medium text-lg">"{visionTranslation}"</p>
-                         <button onClick={() => playTTS(visionTranslation, selectedLang)} className="p-2.5 bg-[#6C63FF] text-white rounded-lg hover:bg-[#5b54e6] transition shadow-lg shrink-0">🔊</button>
-                       </div>
-                     ) : (
-                       <p className="text-white/30 text-sm italic py-2">{webcamActive ? 'Analyzing hand gestures and facial expressions...' : 'Camera inactive'}</p>
-                     )}
-                  </div>
-               </div>
+              <div className="glass-card p-6 animate-in fade-in slide-in-from-bottom-4">
+                <h4 className="text-white font-semibold mb-2 text-lg">Sign to Camera</h4>
+                <p className="text-white/50 text-sm mb-6">Our Vision AI analyzes your signs and speaks them aloud. Perfect for asking questions in class.</p>
+
+                <button onClick={toggleWebcam} className={`w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 ${webcamActive ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gradient-to-r from-[#6C63FF] to-[#4F46E5] text-white shadow-xl'}`}>
+                  {webcamActive ? (
+                    <><span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" /> Stop Camera</>
+                  ) : (
+                    <>📷 Start Vision AI</>
+                  )}
+                </button>
+
+                <div className="mt-6 p-5 bg-black/40 rounded-xl border border-white/5 min-h-[120px]">
+                  <p className="text-white/40 text-xs uppercase mb-3 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${webcamActive ? 'bg-[#6C63FF] animate-pulse' : 'bg-white/20'}`} />
+                    AI Translation
+                  </p>
+                  {visionTranslation ? (
+                    <div className="flex justify-between items-start bg-[#6C63FF]/10 p-4 rounded-xl border border-[#6C63FF]/20 animate-in fade-in zoom-in-95">
+                      <p className="text-white font-medium text-lg">&quot;{visionTranslation}&quot;</p>
+                      <button onClick={() => playTTS(visionTranslation, selectedLang)} className="p-2.5 bg-[#6C63FF] text-white rounded-lg hover:bg-[#5b54e6] transition shadow-lg shrink-0">🔊</button>
+                    </div>
+                  ) : (
+                    <p className="text-white/30 text-sm italic py-2">{webcamActive ? 'Analyzing hand gestures and facial expressions...' : 'Camera inactive'}</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
           {/* Right Panel: Display Area */}
           <div className="glass-card overflow-hidden border border-[#6C63FF]/20 min-h-[500px] flex flex-col relative">
-             {translatorMode === 'speech-to-isl' ? (
-                <>
-                  <div className="p-4 border-b border-white/5 flex items-center justify-between z-10 bg-[#1e1e32]/80 backdrop-blur shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-[#00C9A7] animate-pulse' : 'bg-white/30'}`} />
-                      <h3 className="text-white font-semibold text-sm">Real-time AI Avatar</h3>
+            {translatorMode === 'speech-to-isl' ? (
+              <>
+                <div className="p-4 border-b border-white/5 flex items-center justify-between z-10 bg-[#1e1e32]/80 backdrop-blur shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-[#00C9A7] animate-pulse' : 'bg-white/30'}`} />
+                    <h3 className="text-white font-semibold text-sm">Real-time AI Avatar</h3>
+                  </div>
+                </div>
+                <div className="flex-1 w-full min-h-[400px] relative">
+                  <SignAvatarOverlay queue={translatorQueue} onSignComplete={handleTranslatorSignComplete} className="absolute inset-0 w-full h-full rounded-none border-0" />
+                  {!isListening && translatorQueue.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-black/40 backdrop-blur-sm z-20">
+                      <span className="text-6xl mb-4">🎙️</span>
+                      <p className="text-white font-medium text-lg">Avatar Standing By</p>
+                      <p className="text-white/50 text-sm mt-1">Start listening to translate speech to ISL</p>
                     </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-4 border-b border-white/5 flex items-center justify-between z-10 bg-[#1e1e32]/80 backdrop-blur shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${webcamActive ? 'bg-[#6C63FF] animate-pulse' : 'bg-white/30'}`} />
+                    <h3 className="text-white font-semibold text-sm">Vision AI Camera</h3>
                   </div>
-                  <div className="flex-1 w-full min-h-[400px] relative">
-                    <SignAvatarOverlay queue={translatorQueue} onSignComplete={handleTranslatorSignComplete} className="absolute inset-0 w-full h-full rounded-none border-0" />
-                    {!isListening && translatorQueue.length === 0 && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-black/40 backdrop-blur-sm z-20">
-                         <span className="text-6xl mb-4">🎙️</span>
-                         <p className="text-white font-medium text-lg">Avatar Standing By</p>
-                         <p className="text-white/50 text-sm mt-1">Start listening to translate speech to ISL</p>
-                      </div>
-                    )}
-                  </div>
-                </>
-             ) : (
-                <>
-                  <div className="p-4 border-b border-white/5 flex items-center justify-between z-10 bg-[#1e1e32]/80 backdrop-blur shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${webcamActive ? 'bg-[#6C63FF] animate-pulse' : 'bg-white/30'}`} />
-                      <h3 className="text-white font-semibold text-sm">Vision AI Camera</h3>
-                    </div>
-                  </div>
-                  <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-                    {webcamActive ? (
-                      <>
-                        <Webcam ref={webcamRef} screenshotFormat="image/jpeg" screenshotQuality={0.8} className="w-full h-full object-cover opacity-80" mirrored={true} />
-                        {/* Vision UI Overlay */}
-                        <div className="absolute inset-0 border-[2px] border-[#6C63FF]/30 m-8 rounded-3xl flex items-center justify-center pointer-events-none">
-                           <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-[#6C63FF] rounded-tl-3xl" />
-                           <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-[#6C63FF] rounded-tr-3xl" />
-                           <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-[#6C63FF] rounded-bl-3xl" />
-                           <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-[#6C63FF] rounded-br-3xl" />
-                           
-                           {/* Simulated skeleton joints */}
-                           <div className="absolute w-full h-full">
-                              <div className="absolute top-[30%] left-[45%] w-2 h-2 bg-[#00C9A7] rounded-full shadow-[0_0_10px_#00C9A7] animate-pulse" />
-                              <div className="absolute top-[40%] left-[30%] w-2 h-2 bg-[#00C9A7] rounded-full shadow-[0_0_10px_#00C9A7] animate-pulse delay-100" />
-                              <div className="absolute top-[40%] left-[60%] w-2 h-2 bg-[#00C9A7] rounded-full shadow-[0_0_10px_#00C9A7] animate-pulse delay-200" />
-                           </div>
-                           
-                           <span className="bg-black/60 backdrop-blur-sm text-[#00C9A7] text-[10px] font-mono px-3 py-1 rounded absolute top-4 right-4 border border-[#00C9A7]/30 flex items-center gap-2">
-                             <span className="w-1.5 h-1.5 bg-[#00C9A7] rounded-full animate-ping" />
-                             TRACKING HANDS
-                           </span>
+                </div>
+                <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+                  {webcamActive ? (
+                    <>
+                      <Webcam ref={webcamRef} screenshotFormat="image/jpeg" screenshotQuality={0.8} className="w-full h-full object-cover opacity-80" mirrored={true} />
+                      {/* Live 3D Finger Tracking Canvas Overlay */}
+                      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
+
+                      {/* Vision UI Overlay */}
+                      <div className="absolute inset-0 border-[2px] border-[#6C63FF]/30 m-8 rounded-3xl flex items-center justify-center pointer-events-none">
+                        <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-[#6C63FF] rounded-tl-3xl" />
+                        <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-[#6C63FF] rounded-tr-3xl" />
+                        <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-[#6C63FF] rounded-bl-3xl" />
+                        <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-[#6C63FF] rounded-br-3xl" />
+
+                        <div className="absolute top-4 right-4 flex items-center gap-2">
+                          <span className="bg-black/70 backdrop-blur-md text-[#00C9A7] text-[10px] font-mono px-3 py-1 rounded border border-[#00C9A7]/30 flex items-center gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${fingerTracking ? 'bg-[#00C9A7] animate-ping' : 'bg-white/40'}`} />
+                            {fingerTracking ? `${fingerTracking.handedness || 'HAND'} TRACKED` : 'SEARCHING HAND'}
+                          </span>
                         </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center">
-                         <span className="text-6xl opacity-20 mb-4">📷</span>
-                         <p className="text-white/40">Camera is off</p>
+
+                        {/* Live Finger Tracking HUD */}
+                        {fingerTracking && (
+                          <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#6C63FF] font-semibold">Gesture:</span>
+                              <span className="text-white font-medium bg-[#6C63FF]/20 px-2 py-0.5 rounded border border-[#6C63FF]/30">
+                                {fingerTracking.gesture_hint || 'Detecting'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                              <span className={`px-1.5 py-0.5 rounded ${fingerTracking.fingers?.thumb?.extended ? 'bg-[#00C9A7]/20 text-[#00C9A7] border border-[#00C9A7]/40' : 'bg-white/5 text-white/40'}`}>T</span>
+                              <span className={`px-1.5 py-0.5 rounded ${fingerTracking.fingers?.index?.extended ? 'bg-[#00C9A7]/20 text-[#00C9A7] border border-[#00C9A7]/40' : 'bg-white/5 text-white/40'}`}>I</span>
+                              <span className={`px-1.5 py-0.5 rounded ${fingerTracking.fingers?.middle?.extended ? 'bg-[#00C9A7]/20 text-[#00C9A7] border border-[#00C9A7]/40' : 'bg-white/5 text-white/40'}`}>M</span>
+                              <span className={`px-1.5 py-0.5 rounded ${fingerTracking.fingers?.ring?.extended ? 'bg-[#00C9A7]/20 text-[#00C9A7] border border-[#00C9A7]/40' : 'bg-white/5 text-white/40'}`}>R</span>
+                              <span className={`px-1.5 py-0.5 rounded ${fingerTracking.fingers?.pinky?.extended ? 'bg-[#00C9A7]/20 text-[#00C9A7] border border-[#00C9A7]/40' : 'bg-white/5 text-white/40'}`}>P</span>
+                            </div>
+                            {fingerTracking.is_pinch && (
+                              <span className="bg-[#FF6B6B]/20 text-[#FF6B6B] border border-[#FF6B6B]/40 px-2 py-0.5 rounded font-mono text-[10px] animate-pulse">
+                                PINCH
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </>
-             )}
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center">
+                      <span className="text-6xl opacity-20 mb-4">📷</span>
+                      <p className="text-white/40">Camera is off</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -934,7 +1021,7 @@ export default function SignLabPage() {
             <div className="glass-card p-6">
               <h2 className="text-xl font-bold text-white mb-2">Upload Media (MP4 / MP3)</h2>
               <p className="text-white/60 text-sm mb-6">Upload a video or audio file (like rhymes, stories, or lectures). Our AI will analyze the speech and sign it in real-time.</p>
-              
+
               {!mediaFile ? (
                 <div className="border-2 border-dashed border-[#1cb0f6]/50 rounded-2xl p-10 flex flex-col items-center justify-center bg-[#1cb0f6]/5 hover:bg-[#1cb0f6]/10 transition-colors cursor-pointer relative overflow-hidden group">
                   <input type="file" accept="video/mp4,audio/mp3,audio/mpeg" onChange={handleMediaUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
@@ -954,7 +1041,7 @@ export default function SignLabPage() {
                     </div>
                     <button onClick={() => { setMediaFile(null); setMediaUrl(''); }} className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition">✕</button>
                   </div>
-                  
+
                   {!isMediaProcessing && mediaTokens.length === 0 ? (
                     <button onClick={processMedia} className="w-full py-4 bg-[#58cc02] text-white font-bold rounded-2xl border-b-4 border-[#58a700] active:border-b-0 active:translate-y-1 transition-all">
                       Analyze Speech to ISL
@@ -971,7 +1058,7 @@ export default function SignLabPage() {
                       ) : (
                         <audio ref={mediaRef as any} src={mediaUrl} controls className="w-full" onPlay={playMediaAndSign} />
                       )}
-                      
+
                       <div className="bg-white/5 p-4 rounded-xl">
                         <p className="text-white/40 text-xs font-bold uppercase mb-2">Extracted Transcript</p>
                         <div className="flex flex-wrap gap-2">
@@ -986,7 +1073,7 @@ export default function SignLabPage() {
               )}
             </div>
           </div>
-          
+
           {/* Right - Avatar */}
           <div className="glass-card overflow-hidden border-2 border-[#1cb0f6]/30 min-h-[500px] flex flex-col relative rounded-2xl">
             <div className="p-4 border-b border-white/5 flex items-center justify-between z-10 bg-[#1e1e32]/80 backdrop-blur shrink-0">
@@ -999,8 +1086,8 @@ export default function SignLabPage() {
               <SignAvatarOverlay queue={mediaQueue} onSignComplete={handleMediaSignComplete} className="absolute inset-0 w-full h-full rounded-none border-0" />
               {mediaTokens.length === 0 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-black/40 backdrop-blur-sm z-20">
-                   <span className="text-6xl mb-4 opacity-50">🍿</span>
-                   <p className="text-white font-bold text-lg">Upload media to begin</p>
+                  <span className="text-6xl mb-4 opacity-50">🍿</span>
+                  <p className="text-white font-bold text-lg">Upload media to begin</p>
                 </div>
               )}
             </div>

@@ -10,9 +10,7 @@ export async function POST(req: Request) {
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     if (!RESEND_API_KEY) {
-      // Mock success if no API key is provided
-      console.log('No RESEND_API_KEY found. Mocking successful email dispatch to:', to);
-      return NextResponse.json({ success: true, mocked: true });
+      return NextResponse.json({ error: 'Email service unconfigured: RESEND_API_KEY environment variable missing' }, { status: 503 });
     }
 
     const res = await fetch('https://api.resend.com/emails', {

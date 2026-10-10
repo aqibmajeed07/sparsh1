@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@daily-co/daily-js": "^0.62.0",
+    "@daily-co/daily-js": "^0.68.0",
     "@daily-co/daily-react": "^0.22.0",
     "@hookform/resolvers": "^3.3.4",
     "@react-pdf/renderer": "^3.1.14",
@@ -27,6 +27,7 @@
     "react-hook-form": "^7.50.1",
     "react-webcam": "^7.2.0",
     "recharts": "^2.10.3",
+    "tesseract.js": "^7.0.0",
     "three": "^0.162.0",
     "three-stdlib": "^2.29.4",
     "zod": "^3.22.4",

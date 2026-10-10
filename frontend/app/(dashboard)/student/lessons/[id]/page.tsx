@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { hasSign, SIGN_POSES, tokenizeForSigning } from '@/lib/isl/signMap';
 import CelebrationOverlay from '@/components/ui/CelebrationOverlay';
+import { senseBand } from '@/lib/senseband';
 
 const SignAvatarOverlay = dynamic(
   () => import('@/components/live/SignAvatarOverlay'),
@@ -65,26 +66,26 @@ export default function LessonPlayerPage() {
       if (!textToSign) return;
 
       // Fetch ISL grammar tokens from backend
-      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/isl-grammar`, {
+      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/isl-grammar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToSign, lang: 'en-IN' })
       })
-      .then(res => res.json())
-      .then(data => {
-        const rawText: string = data?.isl_text?.join(' ') || textToSign;
-        // tokenizeForSigning handles BOTH known words and fingerspelling of unknown words
-        const tokens = tokenizeForSigning(rawText);
-        const final = tokens.length > 0 ? tokens : tokenizeForSigning('hello welcome student teacher book');
-        setAvatarQueue(final);
-        setCurrentSign(final[0] || '');
-      })
-      .catch(() => {
-        const demo = tokenizeForSigning('hello welcome student teacher book');
-        setAvatarQueue(demo);
-        setCurrentSign(demo[0] || '');
-      });
-      
+        .then(res => res.json())
+        .then(data => {
+          const rawText: string = data?.isl_text?.join(' ') || textToSign;
+          // tokenizeForSigning handles BOTH known words and fingerspelling of unknown words
+          const tokens = tokenizeForSigning(rawText);
+          const final = tokens.length > 0 ? tokens : tokenizeForSigning('hello welcome student teacher book');
+          setAvatarQueue(final);
+          setCurrentSign(final[0] || '');
+        })
+        .catch(() => {
+          const demo = tokenizeForSigning('hello welcome student teacher book');
+          setAvatarQueue(demo);
+          setCurrentSign(demo[0] || '');
+        });
+
     } else {
       setAvatarQueue([]);
       setCurrentSign('');
@@ -202,9 +203,8 @@ export default function LessonPlayerPage() {
                       <div className="absolute top-3 left-3 right-3 z-30">
                         <div className="flex flex-wrap gap-1">
                           {avatarQueue.slice(0, 8).map((w, i) => (
-                            <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              i === 0 ? 'bg-[#6C63FF] text-white' : 'bg-white/10 text-white/40'
-                            }`}>{w}</span>
+                            <span key={i} className={`px-2 py-0.5 rounded text-[10px] font-bold ${i === 0 ? 'bg-[#6C63FF] text-white' : 'bg-white/10 text-white/40'
+                              }`}>{w}</span>
                           ))}
                           {avatarQueue.length > 8 && <span className="text-white/30 text-[10px]">+{avatarQueue.length - 8}</span>}
                         </div>
@@ -234,6 +234,7 @@ export default function LessonPlayerPage() {
                 <button
                   onClick={() => {
                     setIsPlaying(true);
+                    senseBand.send('CONNECTED');
                     // TTS starts here — inside user click = browser allows audio
                     if (ttsOn) {
                       const text = lesson.accessible_summary || lesson.transcript_text || lesson.description || '';
@@ -250,16 +251,19 @@ export default function LessonPlayerPage() {
               )}
             </div>
 
-              <div className="px-4 py-2 bg-[#1e1e32]/50">
-                <div className="w-full bg-white/10 rounded-full h-1.5 cursor-pointer group" onClick={() => {
-                  const next = Math.min(100, progress + 5);
-                  setProgress(next);
-                  if (next === 100) setLessonDone(true);
-                }}>
-                  <div className="h-full bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] rounded-full transition-all relative" style={{ width: `${progress}%` }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-lg opacity-0 group-hover:opacity-100 transition" />
-                  </div>
+            <div className="px-4 py-2 bg-[#1e1e32]/50">
+              <div className="w-full bg-white/10 rounded-full h-1.5 cursor-pointer group" onClick={() => {
+                const next = Math.min(100, progress + 5);
+                setProgress(next);
+                if (next === 100) {
+                  setLessonDone(true);
+                  senseBand.send('LESSON_COMPLETE');
+                }
+              }}>
+                <div className="h-full bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] rounded-full transition-all relative" style={{ width: `${progress}%` }}>
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-lg opacity-0 group-hover:opacity-100 transition" />
                 </div>
+              </div>
               <div className="flex justify-between text-xs text-white/40 mt-1">
                 <span>0:00</span>
                 <span>{durationMin}:00</span>
@@ -308,11 +312,10 @@ export default function LessonPlayerPage() {
                       stopTTS();
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    ttsOn
-                      ? 'bg-orange-500/30 text-orange-400 border border-orange-500/50'
-                      : 'bg-white/5 text-white/40'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${ttsOn
+                    ? 'bg-orange-500/30 text-orange-400 border border-orange-500/50'
+                    : 'bg-white/5 text-white/40'
+                    }`}
                 >
                   {ttsPlaying ? (
                     <><span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping" />Speaking...</>
@@ -361,6 +364,35 @@ export default function LessonPlayerPage() {
                 ) : (
                   <p className="text-white/40 text-sm">No summary available yet. AI is processing...</p>
                 )}
+
+                {/* AI Doubt Solver Box */}
+                <div className="p-4 bg-gradient-to-r from-[#6C63FF]/15 to-[#00C9A7]/15 rounded-xl border border-[#00C9A7]/30 space-y-2">
+                  <h4 className="text-white font-bold text-xs flex items-center gap-1.5">
+                    <span>💡</span> Have a Doubt? AI Simplified Explanation
+                  </h4>
+                  <p className="text-white/70 text-xs">
+                    Need a simpler explanation? Highlight or type any tricky concept to explain simply:
+                  </p>
+                  <button
+                    onClick={async () => {
+                      const textToExplain = lesson.accessible_summary || lesson.title;
+                      try {
+                        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/doubt-solver`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ text: textToExplain })
+                        });
+                        const data = await res.json();
+                        alert(`💡 Simplified Explanation:\n\n${data.simple_explanation}`);
+                      } catch (e) {
+                        alert(`💡 Simplified Explanation:\n\n${textToExplain} means understanding how nature works around us in simple everyday steps!`);
+                      }
+                    }}
+                    className="w-full py-2 bg-[#00C9A7] text-white font-bold text-xs rounded-lg hover:opacity-90 transition shadow"
+                  >
+                    ✨ Explain Simply with AI
+                  </button>
+                </div>
               </div>
             )}
 

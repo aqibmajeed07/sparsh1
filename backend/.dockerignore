@@ -1,0 +1,14 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+books_repo.zip
+cache/
+logs/
+.git
+.gitignore
+test_*.py
+test_ai_output.txt

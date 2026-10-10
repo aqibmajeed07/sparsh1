@@ -3,58 +3,49 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { senseBand, SenseBandStatus } from '@/lib/senseband';
 
 const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> = {
   student: [
-    { label: 'Dashboard',     href: '/student',              icon: '🏠' },
-    { label: 'Lessons',       href: '/student/lessons',      icon: '📚' },
-    { label: 'Sign Lab',      href: '/student/sign-lab',     icon: '🤟' },
-    { label: 'DeafBlind Lab', href: '/student/deafblind',    icon: '📳' },
-    { label: 'Live Class',    href: '/student/live-class',   icon: '🔴' },
-    { label: 'Memory Cosmos', href: '/student/memory-cosmos',icon: '🌌' },
-    { label: 'Assessments',   href: '/student/assessments',  icon: '📝' },
-    { label: 'Progress',      href: '/student/progress',     icon: '📈' },
-    { label: 'Rewards',       href: '/student/rewards',      icon: '🏆' },
-    { label: 'Analytics',     href: '/student/analytics',    icon: '📊' },
-    { label: 'AI Tutor',      href: '/student/ai-tutor',     icon: '🤖' },
-    { label: 'Reports',       href: '/student/reports',      icon: '📄' },
-    { label: 'Profile',       href: '/student/profile',      icon: '👤' },
+    { label: 'Dashboard', href: '/student', icon: '🏠' },
+    { label: 'Lessons', href: '/student/lessons', icon: '📚' },
+    { label: 'Sign Lab', href: '/student/sign-lab', icon: '🤟' },
+    { label: 'NCERT AI Library', href: '/student/ncert-library', icon: '📖' },
+    { label: 'OCR Book Reader', href: '/student/ocr-reader', icon: '📄' },
+    { label: 'Braille & Speech Lab', href: '/student/braille-lab', icon: '⠃' },
+    { label: 'Smart Keyboard', href: '/student/smart-keyboard', icon: '⌨️' },
+    { label: 'Homework Helper', href: '/student/homework-helper', icon: '📝' },
+    { label: 'Smart Notes', href: '/student/smart-notes', icon: '🎴' },
+    { label: 'AI Tutor', href: '/student/ai-tutor', icon: '🤖' },
+    { label: 'RFID Smart Card', href: '/student/rfid-card', icon: '💳' },
+    { label: 'Accessibility Setup', href: '/student/accessibility-profile', icon: '⚙️' },
+    { label: 'Progress', href: '/student/progress', icon: '📈' },
+    { label: 'Rewards', href: '/student/rewards', icon: '🏆' },
+    { label: 'SenseBand', href: '/student/senseband', icon: '📳' },
   ],
   teacher: [
-    { label: 'Dashboard',     href: '/teacher',              icon: '🏠' },
-    { label: 'Lesson Studio', href: '/teacher/studio',       icon: '🎬' },
-    { label: 'Live Class',    href: '/teacher/live',         icon: '🔴' },
-    { label: 'Students',      href: '/teacher/students',     icon: '👥' },
-    { label: 'Assessments',   href: '/teacher/assessments',  icon: '📝' },
-    { label: 'Analytics',     href: '/teacher/analytics',    icon: '📊' },
-    { label: 'Reports',       href: '/teacher/reports',      icon: '📄' },
+    { label: 'Dashboard', href: '/teacher', icon: '🏠' },
+    { label: 'Lesson Studio', href: '/teacher/studio', icon: '🎬' },
+    { label: 'Student Progress', href: '/teacher/students', icon: '👥' },
+    { label: 'Reports & Analytics', href: '/teacher/reports', icon: '📊' },
   ],
   institution_admin: [
-    { label: 'Dashboard',  href: '/admin',             icon: '🏠' },
-    { label: 'Students',   href: '/admin/students',    icon: '👥' },
-    { label: 'Teachers',   href: '/admin/teachers',    icon: '👨‍🏫' },
-    { label: 'Requests',   href: '/admin/requests',    icon: '🔔' },
-    { label: 'Analytics',  href: '/admin/analytics',   icon: '📊' },
-    { label: 'Compliance', href: '/admin/compliance',  icon: '🏛️' },
-    { label: 'Reports',    href: '/admin/reports',     icon: '📄' },
+    { label: 'School Admin', href: '/admin', icon: '🏫' },
+    { label: 'Manage Teachers', href: '/admin/teachers', icon: '👩‍🏫' },
+    { label: 'Manage Students', href: '/admin/students', icon: '👨‍🎓' },
+    { label: 'Access Requests', href: '/admin/requests', icon: '📋' },
   ],
   ngo_admin: [
-    { label: 'Dashboard',  href: '/admin',             icon: '🏠' },
-    { label: 'Students',   href: '/admin/students',    icon: '👥' },
-    { label: 'Teachers',   href: '/admin/teachers',    icon: '👨‍🏫' },
-    { label: 'Requests',   href: '/admin/requests',    icon: '🔔' },
-    { label: 'Analytics',  href: '/admin/analytics',   icon: '📊' },
-    { label: 'Compliance', href: '/admin/compliance',  icon: '🏛️' },
-    { label: 'Reports',    href: '/admin/reports',     icon: '📄' },
+    { label: 'NGO Overview', href: '/admin', icon: '🏢' },
+    { label: 'Manage Field Educators', href: '/admin/teachers', icon: '👩‍🏫' },
+    { label: 'Beneficiary Students', href: '/admin/students', icon: '👨‍🎓' },
+    { label: 'Access Requests', href: '/admin/requests', icon: '📋' },
   ],
   super_admin: [
-    { label: 'Overview',      href: '/super-admin',                icon: '🌐' },
-    { label: 'Institutions',  href: '/super-admin/institutions',   icon: '🏫' },
-    { label: 'All Users',     href: '/super-admin/users',          icon: '👥' },
-    { label: 'Analytics',     href: '/super-admin/analytics',      icon: '📊' },
-    { label: 'App Config',    href: '/super-admin/config',         icon: '⚙️' },
-    { label: 'AI Monitor',    href: '/super-admin/ai-monitor',     icon: '🤖' },
-    { label: 'Reports',       href: '/super-admin/reports',        icon: '📄' },
+    { label: 'Super Admin', href: '/super-admin', icon: '⚡' },
+    { label: 'User Directory', href: '/super-admin/users', icon: '👥' },
+    { label: 'Platform Analytics', href: '/super-admin/analytics', icon: '📈' },
+    { label: 'Institution Control', href: '/admin', icon: '🏫' },
   ],
 };
 
@@ -70,6 +61,11 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ role, userName, pathname, navItems, onSignOut }: SidebarContentProps) {
+  const [sbStatus, setSbStatus] = useState<SenseBandStatus>('disconnected');
+  useEffect(() => {
+    const unsub = senseBand.onStatus(s => setSbStatus(s));
+    return () => { unsub(); };
+  }, []);
   return (
     <div className="flex flex-col h-full py-6 px-4">
       {/* Logo */}
@@ -96,16 +92,18 @@ function SidebarContent({ role, userName, pathname, navItems, onSignOut }: Sideb
           return (
             <Link key={item.href} href={item.href}>
               <button
-                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all ${
-                  isActive
-                    ? 'bg-[#6C63FF] text-white'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-all ${isActive
+                  ? 'bg-[#6C63FF] text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
               >
                 <span className="text-lg w-6 text-center shrink-0">{item.icon}</span>
                 <span className="font-medium">{item.label}</span>
                 {item.label === 'Live Class' && (
                   <span className="ml-auto w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                )}
+                {item.label === 'SenseBand' && (
+                  <span className={`ml-auto w-2 h-2 rounded-full ${sbStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-white/20'}`} />
                 )}
               </button>
             </Link>
@@ -144,7 +142,7 @@ interface SidebarProps {
 
 export default function Sidebar({ role = 'student', userName = 'User' }: SidebarProps) {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = ROLE_NAV[role] || ROLE_NAV.student;
 
@@ -200,9 +198,8 @@ export default function Sidebar({ role = 'student', userName = 'User' }: Sidebar
 
       {/* Mobile Sidebar Drawer */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 z-50 lg:hidden transform transition-transform duration-300 ease-in-out ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 left-0 h-full w-72 z-50 lg:hidden transform transition-transform duration-300 ease-in-out ${mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
         style={{
           background: 'linear-gradient(180deg, rgba(30,30,50,0.98) 0%, rgba(15,12,41,0.98) 100%)',
           borderRight: '1px solid rgba(255,255,255,0.08)',

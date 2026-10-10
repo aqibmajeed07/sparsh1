@@ -67,3 +67,18 @@ wheels/
 .vscode/
 *.swp
 *.swo
+
+# Large datasets, books, archives & cache (>12 GB)
+backend/books/
+backend/books_repo/
+backend/books_repo.zip
+backend/cache/
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Temporary and lint reports
+*.log
+frontend/lint_results.txt
+

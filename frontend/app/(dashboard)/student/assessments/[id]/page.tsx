@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { senseBand } from '@/lib/senseband';
 
 const QUIZ_QUESTIONS = [
   { id: 1, question: 'What is the smallest particle of an element that retains its chemical properties?', options: ['Molecule', 'Atom', 'Electron', 'Proton'], correct: 1 },
@@ -25,12 +26,19 @@ export default function AssessmentTakePage() {
     const newAnswers = [...answers];
     newAnswers[currentQ] = optionIndex;
     setAnswers(newAnswers);
+    // Haptic feedback: correct/wrong immediately
+    const isCorrect = optionIndex === QUIZ_QUESTIONS[currentQ].correct;
+    senseBand.send(isCorrect ? 'CORRECT' : 'WRONG');
   };
 
   const score = submitted ? Math.round((answers.filter((a, i) => a === QUIZ_QUESTIONS[i].correct).length / QUIZ_QUESTIONS.length) * 100) : 0;
   const correctCount = answers.filter((a, i) => a === QUIZ_QUESTIONS[i].correct).length;
 
-  const handleSubmit = () => setSubmitted(true);
+  const handleSubmit = () => {
+    setSubmitted(true);
+    // Notify student that quiz is done via SenseBand
+    senseBand.send('LESSON_COMPLETE');
+  };
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
