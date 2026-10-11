@@ -75,12 +75,11 @@ class DoubtSolverJob(BaseModel):
 class RFIDJob(BaseModel):
     card_id: str
 
+# Detector is imported lazily to ensure server boots in <70MB RAM without Render OOM
 try:
     from services.sign_detector import detector
-    if detector:
-        detector._ensure_loaded()
 except Exception as e:
-    print(f"Error loading sign detector: {e}")
+    print(f"Error importing sign detector: {e}")
     detector = None
 
 # ─── Health ───────────────────────────────────────────────────────────────────

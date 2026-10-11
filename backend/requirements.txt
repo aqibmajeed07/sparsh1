@@ -9,7 +9,7 @@ pypdf>=5.0.0
 openai>=1.0.0
 httpx>=0.25.0
 
-# Niral AI Model Dependencies
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch
 torchvision
 mediapipe

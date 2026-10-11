@@ -1,11 +1,15 @@
 # Multi-stage optimized Dockerfile for Sparsh AI Backend
 FROM python:3.11-slim
 
-# Set environment variables
+# Set environment variables for low-memory cloud container (Render 512MB RAM limit)
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
-    PORT=8000
+    PORT=8000 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    TORCH_NUM_THREADS=1
 
 WORKDIR /app
 
@@ -19,9 +23,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install python dependencies
+# Copy requirements and install CPU-optimized lightweight PyTorch + packages
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source code including bundled models

@@ -5,7 +5,11 @@ import math
 import json
 import importlib
 
-# Configuration
+# Configuration & low-memory constraints (strictly 1 thread to stay within Render 512MB RAM)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["TORCH_NUM_THREADS"] = "1"
 DEVICE = "cpu"
 
 # Candidate model locations
@@ -184,6 +188,13 @@ class SignDetector:
             cv2 = importlib.import_module('cv2')
             np = importlib.import_module('numpy')
             torch = importlib.import_module('torch')
+            torch.set_num_threads(1)
+            if hasattr(torch, 'set_num_interop_threads'):
+                try:
+                    torch.set_num_interop_threads(1)
+                except Exception:
+                    pass
+            torch.set_grad_enabled(False)
             nn = importlib.import_module('torch.nn')
             models = importlib.import_module('torchvision.models')
             transforms = importlib.import_module('torchvision.transforms')

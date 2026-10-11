@@ -6,6 +6,8 @@ __pycache__
 .env
 .env.local
 books_repo.zip
+books/
+books_repo/
 cache/
 logs/
 .git
