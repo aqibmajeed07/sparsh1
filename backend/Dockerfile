@@ -32,12 +32,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy backend source code including bundled models
 COPY . /app/
 
-# Expose backend port
-EXPOSE 8000
+# Expose backend port (Render dynamically sets $PORT, default 8000)
+EXPOSE 8000 10000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Start Uvicorn server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start Uvicorn server dynamically binding to Render's assigned $PORT
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
