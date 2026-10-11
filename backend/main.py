@@ -82,6 +82,12 @@ except Exception as e:
     print(f"Error importing sign detector: {e}")
     detector = None
 
+@app.on_event("startup")
+def startup_load_model():
+    if detector and not detector.ready:
+        import threading
+        threading.Thread(target=detector._ensure_loaded, daemon=True).start()
+
 # ─── Health ───────────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -91,8 +97,12 @@ except Exception as e:
 @app.get("/api/health")
 @app.head("/api/health")
 def health():
+    if detector and not detector.ready:
+        import threading
+        threading.Thread(target=detector._ensure_loaded, daemon=True).start()
+
     diag = {}
-    if 'detector' in globals() and detector:
+    if detector:
         diag = {
             "ready": getattr(detector, "ready", False),
             "last_error": getattr(detector, "last_error", None),
@@ -105,7 +115,7 @@ def health():
         "service": "Sparsh AI Backend",
         "version": "2.2.0",
         "supabase_connected": supabase is not None,
-        "ai_model_ready": getattr(detector, 'ready', False) if 'detector' in globals() else False,
+        "ai_model_ready": getattr(detector, 'ready', False) if detector else False,
         "finger_tracking": True,
         "diagnostics": diag
     }

@@ -213,49 +213,49 @@ class SignDetector:
                 self.pytorch_path = pytorch_path
                 self.landmark_path = landmark_path
 
-            if not pytorch_path or not os.path.exists(pytorch_path):
-                self.last_error = f"PyTorch model not found at {pytorch_path}"
-                print(f"[SignDetector] {self.last_error}")
+                if not pytorch_path or not os.path.exists(pytorch_path):
+                    self.last_error = f"PyTorch model not found at {pytorch_path}"
+                    print(f"[SignDetector] {self.last_error}")
+                    return False
+
+                self.classes = load_classes()
+                print(f"[SignDetector] Loading model ({len(self.classes)} classes) from {pytorch_path} on {DEVICE}...")
+                self.model = models.mobilenet_v3_small(weights=None)
+                self.model.classifier[3] = nn.Linear(self.model.classifier[3].in_features, len(self.classes))
+                self.model.load_state_dict(torch.load(pytorch_path, map_location=DEVICE))
+                self.model.to(DEVICE).eval()
+
+                self.tf = transforms.Compose([
+                    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+                    transforms.ToTensor(),
+                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                ])
+
+                # Attempt to initialize MediaPipe 3D Hand Landmarker (gracefully degrades to direct vision if missing EGL)
+                self.landmarker = None
+                if landmark_path and os.path.exists(landmark_path):
+                    try:
+                        mp_python = importlib.import_module('mediapipe.tasks.python')
+                        mp_vision = importlib.import_module('mediapipe.tasks.python.vision')
+                        base_opts = mp_python.BaseOptions(model_asset_path=landmark_path)
+                        lm_opts = mp_vision.HandLandmarkerOptions(
+                            base_options=base_opts,
+                            running_mode=mp_vision.RunningMode.IMAGE,
+                            num_hands=1,
+                            min_hand_detection_confidence=0.30,
+                            min_hand_presence_confidence=0.30
+                        )
+                        self.landmarker = mp_vision.HandLandmarker.create_from_options(lm_opts)
+                    except Exception as mp_err:
+                        print(f"[SignDetector] MediaPipe warning (running direct PyTorch vision): {mp_err}")
+
+                self.ready = True
+                print(f"[SignDetector] Ready with bundled models.")
+                return True
+            except Exception as e:
+                self.last_error = f"{type(e).__name__}: {str(e)}"
+                print(f"[SignDetector] Load warning: {self.last_error}")
                 return False
-
-            self.classes = load_classes()
-            print(f"[SignDetector] Loading model ({len(self.classes)} classes) from {pytorch_path} on {DEVICE}...")
-            self.model = models.mobilenet_v3_small(weights=None)
-            self.model.classifier[3] = nn.Linear(self.model.classifier[3].in_features, len(self.classes))
-            self.model.load_state_dict(torch.load(pytorch_path, map_location=DEVICE))
-            self.model.to(DEVICE).eval()
-
-            self.tf = transforms.Compose([
-                transforms.Resize((IMG_SIZE, IMG_SIZE)),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            ])
-
-            # Attempt to initialize MediaPipe 3D Hand Landmarker (gracefully degrades to direct vision if missing EGL)
-            self.landmarker = None
-            if landmark_path and os.path.exists(landmark_path):
-                try:
-                    mp_python = importlib.import_module('mediapipe.tasks.python')
-                    mp_vision = importlib.import_module('mediapipe.tasks.python.vision')
-                    base_opts = mp_python.BaseOptions(model_asset_path=landmark_path)
-                    lm_opts = mp_vision.HandLandmarkerOptions(
-                        base_options=base_opts,
-                        running_mode=mp_vision.RunningMode.IMAGE,
-                        num_hands=1,
-                        min_hand_detection_confidence=0.30,
-                        min_hand_presence_confidence=0.30
-                    )
-                    self.landmarker = mp_vision.HandLandmarker.create_from_options(lm_opts)
-                except Exception as mp_err:
-                    print(f"[SignDetector] MediaPipe warning (running direct PyTorch vision): {mp_err}")
-
-            self.ready = True
-            print(f"[SignDetector] Ready with bundled models.")
-            return True
-        except Exception as e:
-            self.last_error = f"{type(e).__name__}: {str(e)}"
-            print(f"[SignDetector] Load warning: {self.last_error}")
-            return False
 
     def _classify_roi(self, roi_bgr) -> tuple:
         """Classify a BGR image crop with MobileNetV3 and return top predictions."""
