@@ -51,7 +51,7 @@ export default function NCERTLearningLibraryPage() {
     const fetchCatalog = async () => {
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/ncert/catalog');
+            const res = await fetch('/api/ncert/catalog');
             const data = await res.json();
             if (data.status === 'success') {
                 setCatalog(data.catalog);
@@ -83,7 +83,7 @@ export default function NCERTLearningLibraryPage() {
         speak(`Opening NCERT Chapter ${chap.title}`);
 
         try {
-            const res = await fetch(`http://localhost:8000/api/ncert/chapter?path=${encodeURIComponent(chap.path)}`);
+            const res = await fetch(`/api/ncert/chapter?path=${encodeURIComponent(chap.path)}`);
             const data = await res.json();
             if (data.status === 'success') {
                 setChapterData(data.data);
@@ -113,7 +113,7 @@ export default function NCERTLearningLibraryPage() {
         const currentPageText = chapterData.pages[readingPage - 1]?.text || chapterData.full_text.slice(0, 1000);
 
         try {
-            const res = await fetch('http://localhost:8000/api/ncert/ai/explain', {
+            const res = await fetch('/api/ncert/ai/explain', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -141,14 +141,14 @@ export default function NCERTLearningLibraryPage() {
         const textChunk = chapterData.pages[readingPage - 1]?.text || chapterData.full_text.slice(0, 1000);
 
         try {
-            const res = await fetch('http://localhost:8000/api/ncert/ai/quiz', {
+            const res = await fetch('/api/ncert/ai/quiz', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text_chunk: textChunk, num_questions: 3 })
             });
             const data = await res.json();
             if (data.status === 'success') {
-                setQuizList(data.quiz);
+                setQuizList(data.quizzes || data.quiz || []);
                 setQuizAnswers({});
                 setQuizScore(null);
                 speak("Interactive NCERT Quiz Generated!");
@@ -163,14 +163,14 @@ export default function NCERTLearningLibraryPage() {
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
         try {
-            const res = await fetch('http://localhost:8000/api/ncert/search', {
+            const res = await fetch('/api/ncert/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: searchQuery, class_filter: selectedClass, top_k: 5 })
             });
             const data = await res.json();
             if (data.status === 'success') {
-                setSearchResults(data.results);
+                setSearchResults(data.results || []);
             }
         } catch (err) {
             console.error(err);

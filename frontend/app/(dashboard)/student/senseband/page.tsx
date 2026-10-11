@@ -175,7 +175,7 @@ export default function SenseBandPage() {
                 payload.ollama_api_key = ollamaKey.trim();
             }
 
-            const res = await fetch('http://localhost:8000/api/senseband/ai-emotion', {
+            const res = await fetch('/api/senseband/ai-emotion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

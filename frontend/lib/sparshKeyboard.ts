@@ -516,10 +516,21 @@ class SparshKeyboardManager {
         this.emitText();
     }
 
+    // ── Simulate or Type Key ──────────────────────────────────────────────────
+    typeKey(key: string) {
+        this.lastKey = key;
+        this.handleKeyInput(key);
+        this.emitKey({
+            type: 'KEY',
+            value: key,
+            timestamp: Date.now(),
+            connection: this.connectionType !== 'none' ? this.connectionType : 'usb',
+        });
+    }
+
     // ── Backspace ──────────────────────────────────────────────────────────────
     backspace() {
-        this.typedText = this.typedText.slice(0, -1);
-        this.emitText();
+        this.typeKey('BACKSPACE');
     }
 }
 

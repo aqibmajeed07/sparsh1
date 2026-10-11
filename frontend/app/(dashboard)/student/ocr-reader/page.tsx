@@ -81,7 +81,7 @@ export default function OCRReaderPage() {
 
                 // Request AI Summary from Backend
                 try {
-                    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/ncert/ai/explain`, {
+                    const res = await fetch('/api/ncert/ai/explain', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -138,7 +138,7 @@ export default function OCRReaderPage() {
     const handleGenerateSummary = async () => {
         setLoadingSummary(true);
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/ncert/ai/explain`, {
+            const res = await fetch('/api/ncert/ai/explain', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

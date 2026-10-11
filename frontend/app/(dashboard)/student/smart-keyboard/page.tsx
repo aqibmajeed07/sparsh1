@@ -241,16 +241,21 @@ export default function SmartKeyboardPage() {
 
                     {/* Last Key Pressed */}
                     <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#6C63FF]/30 to-[#00C9A7]/30 border-2 border-[#6C63FF]/50 flex items-center justify-center">
-                            <span className="text-4xl font-black text-white">
-                                {lastKey === 'SPACE' ? '⎵' : lastKey === 'ENTER' ? '⏎' : lastKey || '—'}
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#6C63FF]/30 to-[#00C9A7]/30 border-2 border-[#6C63FF]/50 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                            <span className="text-4xl font-black text-white select-none">
+                                {lastKey === 'SPACE' ? '⎵' : lastKey === 'ENTER' ? '⏎' : lastKey === 'BACKSPACE' ? '⌫' : lastKey || '—'}
                             </span>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <h3 className="text-white/50 text-xs font-bold uppercase tracking-wider">Last Key</h3>
-                            <p className="text-white font-bold text-lg">{lastKey || 'Waiting...'}</p>
-                            {lastKey && BRAILLE[lastKey.toUpperCase()] && (
+                            <p className="text-white font-bold text-lg truncate">
+                                {lastKey === 'BACKSPACE' ? 'Backspace (⌫)' : lastKey === 'SPACE' ? 'Space (⎵)' : lastKey === 'ENTER' ? 'Enter (⏎)' : lastKey || 'Waiting...'}
+                            </p>
+                            {lastKey && lastKey !== 'BACKSPACE' && BRAILLE[lastKey.toUpperCase()] && (
                                 <p className="text-yellow-300 text-2xl mt-1">{BRAILLE[lastKey.toUpperCase()]}</p>
+                            )}
+                            {lastKey === 'BACKSPACE' && (
+                                <p className="text-emerald-400 text-xs font-medium mt-1">Character Deleted</p>
                             )}
                         </div>
                     </div>
@@ -258,7 +263,13 @@ export default function SmartKeyboardPage() {
                     {/* Typed Text Display */}
                     <div>
                         <div className="flex justify-between items-center mb-2">
-                            <h3 className="text-white font-bold text-sm">Composed Text</h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-white font-bold text-sm">Composed Text</h3>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-semibold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    Active Editor
+                                </span>
+                            </div>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => speak(typedText || 'No text typed yet')}
@@ -274,10 +285,63 @@ export default function SmartKeyboardPage() {
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 bg-black/50 rounded-xl border border-white/10 min-h-[120px]">
-                            <p className="text-white text-lg font-medium leading-relaxed whitespace-pre-wrap">
-                                {typedText || <span className="text-white/30 italic">Start typing on the SPARSH Keyboard...</span>}
-                            </p>
+
+                        {/* Composed text area with realistic typing blinker */}
+                        <div className="p-4 bg-black/50 rounded-xl border border-white/10 min-h-[130px] flex flex-col justify-between transition focus-within:border-[#00C9A7]/50">
+                            <div className="text-white text-lg font-medium leading-relaxed whitespace-pre-wrap break-words font-mono">
+                                {typedText ? (
+                                    <span>
+                                        {typedText}
+                                        {/* Typing Blinker / Caret */}
+                                        <span 
+                                            className="inline-block w-[3px] h-5 bg-[#00C9A7] ml-0.5 align-middle rounded-full animate-pulse shadow-[0_0_8px_#00C9A7]" 
+                                            aria-hidden="true"
+                                        />
+                                    </span>
+                                ) : (
+                                    <span className="text-white/30 italic flex items-center gap-1.5 font-sans text-base">
+                                        <span>Start typing on the SPARSH Keyboard...</span>
+                                        {/* Idle typing blinker */}
+                                        <span 
+                                            className="inline-block w-[3px] h-5 bg-[#00C9A7]/70 ml-0.5 align-middle rounded-full animate-pulse shadow-[0_0_6px_#00C9A7]" 
+                                            aria-hidden="true"
+                                        />
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Quick On-Screen Key Controls for Backspace, Space, and Enter */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 mt-3 border-t border-white/5 text-xs select-none">
+                                <span className="text-white/40">
+                                    Length: <strong className="text-white/70 font-mono">{typedText.length}</strong> chars • Words: <strong className="text-white/70 font-mono">{typedText.trim() ? typedText.trim().split(/\s+/).length : 0}</strong>
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => sparshKeyboard.backspace()}
+                                        className="px-3 py-1.5 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 border border-red-500/30 text-red-200 rounded-lg font-bold transition flex items-center gap-1.5 text-xs shadow-sm"
+                                        title="Delete previous character"
+                                    >
+                                        <span className="text-sm">⌫</span> Backspace
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => sparshKeyboard.typeKey('SPACE')}
+                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/10 text-white rounded-lg font-bold transition flex items-center gap-1.5 text-xs shadow-sm"
+                                        title="Insert space"
+                                    >
+                                        <span className="text-sm">⎵</span> Space
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => sparshKeyboard.typeKey('ENTER')}
+                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 active:bg-white/30 border border-white/10 text-white rounded-lg font-bold transition flex items-center gap-1.5 text-xs shadow-sm"
+                                        title="Insert new line"
+                                    >
+                                        <span className="text-sm">⏎</span> Enter
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -309,13 +373,13 @@ export default function SmartKeyboardPage() {
                                 <div className="p-6 bg-black/50 rounded-xl border border-white/10 text-center">
                                     <h4 className="text-white/50 text-xs font-bold uppercase mb-2">Letter</h4>
                                     <p className="text-6xl font-black text-white">
-                                        {lastKey === 'SPACE' ? '⎵' : lastKey === 'ENTER' ? '⏎' : lastKey || '?'}
+                                        {lastKey === 'SPACE' ? '⎵' : lastKey === 'ENTER' ? '⏎' : lastKey === 'BACKSPACE' ? '⌫' : lastKey || '?'}
                                     </p>
                                 </div>
                                 <div className="p-6 bg-black/50 rounded-xl border border-white/10 text-center">
                                     <h4 className="text-white/50 text-xs font-bold uppercase mb-2">Braille</h4>
                                     <p className="text-6xl text-yellow-300">
-                                        {lastKey ? (BRAILLE[lastKey.toUpperCase()] || '?') : '⠀'}
+                                        {lastKey === 'BACKSPACE' ? '⌫' : lastKey ? (BRAILLE[lastKey.toUpperCase()] || '?') : '⠀'}
                                     </p>
                                 </div>
                             </div>
