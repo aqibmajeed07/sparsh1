@@ -180,6 +180,7 @@ class SignDetector:
         if self.ready:
             return True
         try:
+            self.last_error = None
             cv2 = importlib.import_module('cv2')
             np = importlib.import_module('numpy')
             torch = importlib.import_module('torch')
@@ -191,9 +192,12 @@ class SignDetector:
             mp_vision = importlib.import_module('mediapipe.tasks.python.vision')
 
             pytorch_path, landmark_path = get_model_paths()
+            self.pytorch_path = pytorch_path
+            self.landmark_path = landmark_path
 
             if not pytorch_path or not os.path.exists(pytorch_path):
-                print(f"[SignDetector] Model path not found: {pytorch_path}")
+                self.last_error = f"PyTorch model not found at {pytorch_path}"
+                print(f"[SignDetector] {self.last_error}")
                 return False
 
             self.classes = load_classes()
@@ -226,7 +230,8 @@ class SignDetector:
             print(f"[SignDetector] Ready with bundled models.")
             return True
         except Exception as e:
-            print(f"[SignDetector] Load warning: {e}")
+            self.last_error = f"{type(e).__name__}: {str(e)}"
+            print(f"[SignDetector] Load warning: {self.last_error}")
             return False
 
     def _classify_roi(self, roi_bgr) -> tuple:

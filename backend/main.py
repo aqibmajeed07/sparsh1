@@ -89,13 +89,28 @@ except Exception as e:
 @app.get("/health")
 @app.get("/api/health")
 def health():
+    diag = {}
+    if 'detector' in globals() and detector:
+        if not getattr(detector, 'ready', False):
+            try:
+                detector._ensure_loaded()
+            except Exception as e:
+                pass
+        diag = {
+            "ready": getattr(detector, "ready", False),
+            "last_error": getattr(detector, "last_error", None),
+            "pytorch_path": getattr(detector, "pytorch_path", None),
+            "landmark_path": getattr(detector, "landmark_path", None),
+        }
+
     return {
         "status": "ok",
         "service": "Sparsh AI Backend",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "supabase_connected": supabase is not None,
         "ai_model_ready": getattr(detector, 'ready', False) if 'detector' in globals() else False,
-        "finger_tracking": True
+        "finger_tracking": True,
+        "diagnostics": diag
     }
 
 # ─── Lessons API ──────────────────────────────────────────────────────────────
