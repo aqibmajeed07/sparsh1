@@ -1419,6 +1419,42 @@ def ai_generate_ncert_quiz(job: NCERTQuizJob):
 
     return {"status": "success", "quiz": quiz_data}
 
+@app.post("/api/extract-document")
+async def extract_document(file: UploadFile = File(...)):
+    """Extract text from uploaded document (PDF or Text)."""
+    filename = file.filename or ""
+    content = await file.read()
+
+    if filename.lower().endswith(".pdf") or (file.content_type and "pdf" in file.content_type):
+        try:
+            import io
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(content))
+            pages_text = []
+            for i, p in enumerate(reader.pages):
+                t = p.extract_text()
+                if t:
+                    pages_text.append(t.strip())
+            full_text = "\n\n".join(pages_text)
+            return {
+                "status": "success",
+                "filename": filename,
+                "type": "pdf",
+                "total_pages": len(reader.pages),
+                "text": full_text
+            }
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {str(e)}")
+
+    if filename.lower().endswith(".txt"):
+        try:
+            text = content.decode('utf-8', errors='ignore')
+            return {"status": "success", "filename": filename, "type": "txt", "text": text}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    return {"status": "success", "filename": filename, "type": "raw", "text": ""}
+
 def free_port(port: int = 8000):
     """Frees specified port if occupied on Windows to prevent WinError 10048."""
     import subprocess
