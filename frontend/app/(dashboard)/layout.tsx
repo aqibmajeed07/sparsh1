@@ -17,6 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const didRun = useRef(false); // prevent double-run in React Strict Mode
 
   useEffect(() => {
@@ -123,8 +124,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     router.replace('/login');
   };
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <AccessibilityProvider>
