@@ -11,12 +11,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Image is required' }, { status: 400 });
     }
 
+    const isMissingBackendEnv = !process.env.BACKEND_URL && !process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NODE_ENV === 'production';
+    if (isMissingBackendEnv) {
+      return NextResponse.json({
+        sign: null,
+        confidence: 0,
+        is_confident: false,
+        message: 'BACKEND_URL environment variable not configured in Vercel. Set your Render URL in Vercel Settings.',
+        finger_tracking: null,
+        model_source: 'Niral AI Model',
+      });
+    }
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/predict-sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image }),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) {
@@ -31,7 +43,7 @@ export async function POST(req: Request) {
         sign: null,
         confidence: 0,
         is_confident: false,
-        message: 'AI backend offline or connecting...',
+        message: 'Connecting to Render backend (waking up or offline)...',
         finger_tracking: null,
         model_source: 'Niral AI Model',
       });
