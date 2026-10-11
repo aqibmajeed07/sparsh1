@@ -125,7 +125,7 @@ export default function RegisterPage() {
     <div className="min-h-screen w-full bg-slate-950 flex flex-col lg:grid lg:grid-cols-12 font-sans selection:bg-[#6C63FF]/30 selection:text-white">
       
       {/* ── LEFT SIDE: Government-Style Classroom Visual & Institutional Badges ── */}
-      <div className="relative w-full lg:col-span-5 xl:col-span-5 h-56 sm:h-72 lg:h-auto lg:min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-12 overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10">
+      <div className="relative w-full lg:col-span-5 xl:col-span-5 h-44 sm:h-64 lg:h-auto lg:min-h-screen flex flex-col justify-between p-4 sm:p-8 lg:p-12 overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10">
         {/* Full Image */}
         <Image
           src="/inclusive_classroom.jpg"
@@ -200,7 +200,7 @@ export default function RegisterPage() {
       </div>
 
       {/* ── RIGHT SIDE: Registration Portal Form ── */}
-      <div className="w-full lg:col-span-7 xl:col-span-7 flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-14 bg-slate-950 overflow-y-auto min-h-screen">
+      <div className="w-full lg:col-span-7 xl:col-span-7 flex flex-col justify-between p-4 sm:p-8 lg:p-12 xl:p-14 bg-slate-950 overflow-y-auto min-h-screen">
         
         <div className="max-w-xl w-full mx-auto my-auto py-4">
           

@@ -235,16 +235,16 @@ export default function ProgressPage() {
   const signsCount = parseInt(summaryStats.islSigns) || 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-5 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
             <span>📈</span> My Learning Performance
           </h1>
-          <p className="text-white/60 mt-1">Real-time live progress tracking synchronized across all curriculum modules</p>
+          <p className="text-white/60 text-xs sm:text-sm mt-1">Real-time live progress tracking synchronized across all curriculum modules</p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] sm:text-xs font-semibold shrink-0">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           <span>Live Database Connected</span>
         </div>
@@ -257,7 +257,7 @@ export default function ProgressPage() {
       ) : (
         <>
           {/* Summary Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
             {[
               {
                 label: 'Total Lessons',
@@ -290,17 +290,17 @@ export default function ProgressPage() {
                 color: 'text-orange-400'
               },
             ].map((s, i) => (
-              <div key={i} className="glass-card p-4 text-center rounded-2xl border border-white/10 hover:border-white/20 transition-all">
-                <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
-                <p className="text-white/80 text-xs font-medium mt-1">{s.label}</p>
-                <p className="text-white/40 text-[10px] mt-0.5">{s.sub}</p>
+              <div key={i} className="glass-card p-3 sm:p-4 text-center rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                <p className={`text-xl sm:text-2xl font-black ${s.color}`}>{s.value}</p>
+                <p className="text-white/80 text-[11px] sm:text-xs font-medium mt-1">{s.label}</p>
+                <p className="text-white/40 text-[9px] sm:text-[10px] mt-0.5">{s.sub}</p>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Weekly Activity Chart */}
-            <div className="glass-card p-6 rounded-2xl border border-white/10">
+            <div className="glass-card p-4 sm:p-6 rounded-2xl border border-white/10">
               <h3 className="text-white font-semibold mb-4 flex items-center justify-between">
                 <span>Weekly Learning Activity</span>
                 <span className="text-xs text-white/40 font-normal">7-Day Live Log</span>

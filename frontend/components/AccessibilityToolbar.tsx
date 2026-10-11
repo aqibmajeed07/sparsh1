@@ -19,10 +19,10 @@ export default function AccessibilityToolbar() {
     const [expanded, setExpanded] = useState(false);
 
     return (
-        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
+        <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 flex flex-col items-end gap-2">
             {/* Expanded Controls Panel */}
             {expanded && (
-                <div className="glass-card p-4 rounded-2xl border-2 border-[#6C63FF]/50 bg-[#1e1e32]/95 backdrop-blur-xl shadow-2xl space-y-3 w-72 mb-2 animate-in fade-in slide-in-from-bottom-5">
+                <div className="glass-card p-4 rounded-2xl border-2 border-[#6C63FF]/50 bg-[#1e1e32]/95 backdrop-blur-xl shadow-2xl space-y-3 w-72 max-w-[calc(100vw-1.5rem)] mb-2 animate-in fade-in slide-in-from-bottom-5">
                     <div className="flex items-center justify-between border-b border-white/10 pb-2">
                         <h4 className="text-white font-bold text-sm flex items-center gap-2">
                             <span>♿</span> Accessibility Controls
@@ -86,8 +86,9 @@ export default function AccessibilityToolbar() {
             {/* Floating Toggle Button */}
             <button
                 onClick={() => setExpanded(prev => !prev)}
-                className="w-14 h-14 rounded-full bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white shadow-2xl flex items-center justify-center text-2xl hover:scale-110 active:scale-95 transition-all border-2 border-white/20"
+                className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white shadow-2xl flex items-center justify-center text-xl sm:text-2xl hover:scale-110 active:scale-95 transition-all border-2 border-white/20"
                 title="Open Accessibility Controls"
+                aria-label="Toggle Accessibility Controls"
             >
                 ♿
             </button>

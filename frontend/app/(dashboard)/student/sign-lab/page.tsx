@@ -459,7 +459,7 @@ export default function SignLabPage() {
       </div>
 
       {/* ── Tabs ── */}
-      <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-white/5 rounded-xl overflow-x-auto max-w-full">
         {([
           { id: 'dictionary', label: '📖 Sign Dictionary', icon: '📖' },
           { id: 'document', label: '📄 AI Document Signer', icon: '📄' },
@@ -467,7 +467,7 @@ export default function SignLabPage() {
           { id: 'media', label: '🎬 Media to ISL', icon: '🎬' },
         ] as { id: TabId; label: string; icon: string }[]).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+            className={`px-3.5 sm:px-5 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap shrink-0 ${activeTab === tab.id
                 ? 'bg-gradient-to-r from-[#6C63FF] to-[#4F46E5] text-white shadow'
                 : 'text-white/50 hover:text-white/80'
               }`}>

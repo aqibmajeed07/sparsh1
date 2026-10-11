@@ -138,36 +138,36 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">
             {greeting()}, {profile?.full_name || 'Aqib Majeed'} 👋
           </h1>
-          <p className="text-white/60">Ready to learn something new today?</p>
+          <p className="text-white/60 text-xs sm:text-sm mt-0.5">Ready to learn something new today?</p>
         </div>
-        <div className="flex gap-2 bg-[#1e1e32]/50 p-2 rounded-xl backdrop-blur-md border border-white/10">
-          <button className="px-3 py-1.5 rounded-lg bg-[#6C63FF]/20 text-[#6C63FF] text-sm font-medium">ISL</button>
-          <button className="px-3 py-1.5 rounded-lg hover:bg-white/5 text-white/70 text-sm font-medium transition">Captions</button>
-          <button className="px-3 py-1.5 rounded-lg hover:bg-white/5 text-white/70 text-sm font-medium transition">TTS</button>
+        <div className="flex gap-1.5 sm:gap-2 bg-[#1e1e32]/50 p-1.5 sm:p-2 rounded-xl backdrop-blur-md border border-white/10 shrink-0">
+          <button className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#6C63FF]/20 text-[#6C63FF] text-xs sm:text-sm font-semibold">ISL</button>
+          <button className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-white/5 text-white/70 text-xs sm:text-sm font-medium transition">Captions</button>
+          <button className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-white/5 text-white/70 text-xs sm:text-sm font-medium transition">TTS</button>
         </div>
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         {[
           { label: 'Lessons Completed', value: stats.lessonsTotal, color: 'text-[#1cb0f6]', bg: 'bg-[#1cb0f6]/10', border: 'border-[#1cb0f6]/20' },
           { label: 'Weekly Streak', value: `${stats.streak} days`, color: 'text-[#ff9600]', bg: 'bg-[#ff9600]/10', border: 'border-[#ff9600]/20', icon: '🔥' },
           { label: 'ISL Hours', value: `${stats.signHours}h`, color: 'text-[#58cc02]', bg: 'bg-[#58cc02]/10', border: 'border-[#58cc02]/20', icon: '🤟' },
           { label: 'Lessons In DB', value: recentLessons.length > 0 ? `${recentLessons.length}+` : '0', color: 'text-[#ce82ff]', bg: 'bg-[#ce82ff]/10', border: 'border-[#ce82ff]/20' },
         ].map((stat, i) => (
-          <div key={i} className={`glass-card p-5 rounded-2xl border-b-4 ${stat.border} ${stat.bg} hover:translate-y-[-2px] transition-transform cursor-pointer`} onClick={vibrate}>
-            <p className="text-white/60 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
+          <div key={i} className={`glass-card p-3.5 sm:p-5 rounded-2xl border-b-4 ${stat.border} ${stat.bg} hover:translate-y-[-2px] transition-transform cursor-pointer`} onClick={vibrate}>
+            <p className="text-white/60 text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
               {stat.icon && <span>{stat.icon}</span>}
-              {stat.label}
+              <span className="truncate">{stat.label}</span>
             </p>
-            <p className={`text-3xl font-black ${stat.color}`}>{loading ? '…' : stat.value}</p>
+            <p className={`text-2xl sm:text-3xl font-black ${stat.color}`}>{loading ? '…' : stat.value}</p>
           </div>
         ))}
       </div>
@@ -224,8 +224,8 @@ export default function StudentDashboard() {
 
       {/* Quick Actions for Hackathon MVP */}
       <div>
-        <h3 className="text-white font-bold text-lg mb-3">Inclusive Learning Tools</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <h3 className="text-white font-bold text-base sm:text-lg mb-3">Inclusive Learning Tools</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
           <Link href="/student/lessons" onClick={vibrate}>
             <button className="w-full py-4 px-2 bg-[#58cc02] text-white font-bold rounded-2xl border-b-4 border-[#58a700] active:border-b-0 active:translate-y-1 transition-all text-xs shadow-sm flex flex-col items-center gap-1">
               <span className="text-2xl">📚</span>

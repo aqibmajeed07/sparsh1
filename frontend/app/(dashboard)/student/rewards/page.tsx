@@ -211,26 +211,26 @@ export default function RewardsPage() {
       {/* Header & Streak Badge */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2.5 sm:gap-3">
             <span>🏆</span> Your Rewards & Gamification
           </h1>
-          <p className="text-white/60 mt-1 font-medium">Earn badges, level up your XP, and maintain your daily learning streak!</p>
+          <p className="text-white/60 text-xs sm:text-sm mt-1 font-medium">Earn badges, level up your XP, and maintain your daily learning streak!</p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="glass-card px-5 py-3 rounded-2xl border-b-4 border-[#ff9600]/50 bg-[#ff9600]/10 flex items-center gap-3">
-            <span className="text-3xl animate-bounce">🔥</span>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full md:w-auto shrink-0">
+          <div className="glass-card px-3 sm:px-5 py-2.5 sm:py-3 rounded-2xl border-b-4 border-[#ff9600]/50 bg-[#ff9600]/10 flex items-center gap-2.5 sm:gap-3">
+            <span className="text-2xl sm:text-3xl animate-bounce">🔥</span>
             <div>
-              <p className="text-white/50 text-[10px] font-black uppercase tracking-wider">Daily Streak</p>
-              <p className="text-[#ff9600] font-black text-2xl leading-none">{streak} Days</p>
+              <p className="text-white/50 text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Daily Streak</p>
+              <p className="text-[#ff9600] font-black text-xl sm:text-2xl leading-none mt-0.5">{streak} Days</p>
             </div>
           </div>
 
-          <div className="glass-card px-5 py-3 rounded-2xl border-b-4 border-[#ce82ff]/50 bg-[#ce82ff]/10 flex items-center gap-3">
-            <span className="text-3xl animate-pulse">⚡</span>
+          <div className="glass-card px-3 sm:px-5 py-2.5 sm:py-3 rounded-2xl border-b-4 border-[#ce82ff]/50 bg-[#ce82ff]/10 flex items-center gap-2.5 sm:gap-3">
+            <span className="text-2xl sm:text-3xl animate-pulse">⚡</span>
             <div>
-              <p className="text-white/50 text-[10px] font-black uppercase tracking-wider">Total Experience</p>
-              <p className="text-[#ce82ff] font-black text-2xl leading-none">{xp} XP</p>
+              <p className="text-white/50 text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Total Experience</p>
+              <p className="text-[#ce82ff] font-black text-xl sm:text-2xl leading-none mt-0.5">{xp} XP</p>
             </div>
           </div>
         </div>
@@ -274,19 +274,19 @@ export default function RewardsPage() {
             </div>
 
             {/* 7-Day Weekly Calendar Tracker */}
-            <div className="grid grid-cols-7 gap-2 pt-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2.5 pt-2">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
                 const isDone = idx < (streak % 7 || (streak > 0 ? 7 : 0));
                 return (
                   <div
                     key={day}
-                    className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${isDone
+                    className={`p-1.5 sm:p-3 rounded-lg sm:rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 sm:gap-1 ${isDone
                       ? 'bg-[#ff9600]/25 border-[#ff9600] text-white shadow-md'
                       : 'bg-white/5 border-white/10 text-white/40'
                       }`}
                   >
-                    <span className="text-[10px] font-bold uppercase tracking-widest">{day}</span>
-                    <span className="text-lg">{isDone ? '🔥' : '🔒'}</span>
+                    <span className="text-[8px] sm:text-[10px] font-bold uppercase tracking-wider">{day}</span>
+                    <span className="text-sm sm:text-lg">{isDone ? '🔥' : '🔒'}</span>
                   </div>
                 );
               })}
@@ -294,27 +294,27 @@ export default function RewardsPage() {
           </div>
 
           {/* Tier Level & Badge Collection Progress */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="glass-card p-6 rounded-2xl border border-[#ce82ff]/30 bg-[#ce82ff]/10 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            <div className="glass-card p-4 sm:p-6 rounded-2xl border border-[#ce82ff]/30 bg-[#ce82ff]/10 space-y-2 sm:space-y-3">
               <div className="flex justify-between items-center">
-                <h3 className="text-[#ce82ff] font-bold text-base flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5" /> Scholar Rank Tier
+                <h3 className="text-[#ce82ff] font-bold text-sm sm:text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" /> Scholar Rank Tier
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#ce82ff]/20 text-[#ce82ff] text-xs font-bold border border-[#ce82ff]/40">
                   {tier}
                 </span>
               </div>
-              <p className="text-white text-sm font-semibold">Keep completing lessons to rank up to Diamond Master status.</p>
+              <p className="text-white text-xs sm:text-sm font-semibold">Keep completing lessons to rank up to Diamond Master status.</p>
             </div>
 
-            <div className="md:col-span-2 glass-card p-6 rounded-2xl border border-white/10 space-y-3">
+            <div className="md:col-span-2 glass-card p-4 sm:p-6 rounded-2xl border border-white/10 space-y-2 sm:space-y-3">
               <div className="flex justify-between items-end">
-                <h2 className="text-white font-bold text-lg flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-yellow-400" /> Badge Collection Progress
+                <h2 className="text-white font-bold text-base sm:text-lg flex items-center gap-2">
+                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" /> Badge Collection Progress
                 </h2>
-                <span className="text-[#00C9A7] font-bold text-sm">{unlockedCount} / {badges.length} Unlocked</span>
+                <span className="text-[#00C9A7] font-bold text-xs sm:text-sm">{unlockedCount} / {badges.length} Unlocked</span>
               </div>
-              <div className="w-full bg-black/40 rounded-full h-5 overflow-hidden border border-white/5 relative p-1">
+              <div className="w-full bg-black/40 rounded-full h-4 sm:h-5 overflow-hidden border border-white/5 relative p-0.5 sm:p-1">
                 <div
                   className="h-full bg-gradient-to-r from-[#6C63FF] via-[#ce82ff] to-[#00C9A7] rounded-full transition-all duration-1000 ease-out relative"
                   style={{ width: `${badges.length ? (unlockedCount / badges.length) * 100 : 0}%` }}
@@ -326,17 +326,17 @@ export default function RewardsPage() {
           </div>
 
           {/* Badges Grid */}
-          <div className="space-y-4">
-            <h2 className="text-white font-extrabold text-xl flex items-center gap-2">
+          <div className="space-y-3 sm:space-y-4">
+            <h2 className="text-white font-extrabold text-lg sm:text-xl flex items-center gap-2">
               <span>🎖️</span> Unlockable Achievement Badges
             </h2>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {badges.map((badge) => (
                 <div
                   key={badge.id}
                   onClick={() => speak(`${badge.title} badge: ${badge.desc}. Status: ${badge.unlocked ? 'Unlocked' : 'In progress'}`)}
-                  className={`glass-card p-5 flex flex-col items-center text-center transition-all cursor-pointer rounded-2xl border-2 transform hover:-translate-y-1 ${badge.unlocked
+                  className={`glass-card p-4 sm:p-5 flex flex-col items-center text-center transition-all cursor-pointer rounded-2xl border-2 transform hover:-translate-y-1 ${badge.unlocked
                     ? 'border-[#00C9A7]/40 bg-[#1e1e32]/80 shadow-xl'
                     : 'border-white/10 opacity-70 grayscale-[0.5] hover:grayscale-0'
                     }`}
@@ -346,7 +346,7 @@ export default function RewardsPage() {
                   }}
                 >
                   <div
-                    className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner relative ${badge.unlocked ? 'animate-bounce' : ''}`}
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-2xl sm:text-3xl mb-2 sm:mb-3 shadow-inner relative ${badge.unlocked ? 'animate-bounce' : ''}`}
                     style={{ backgroundColor: badge.unlocked ? `${badge.color}30` : '#222' }}
                   >
                     {badge.icon}

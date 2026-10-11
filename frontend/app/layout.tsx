@@ -13,6 +13,14 @@ export const metadata: Metadata = {
   description: 'AI-powered inclusive education for visually impaired, hearing impaired, and DeafBlind students across India. ISL avatar, live captions, TTS, and Braille support.',
   keywords: 'sparsh, accessible education, ISL, Indian Sign Language, deaf education, visually impaired, inclusive learning, India, NCERT',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    apple: '/icons/icon-192x192.png',
+    shortcut: '/favicon.ico',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

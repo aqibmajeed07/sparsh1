@@ -148,12 +148,23 @@ function SidebarContent({ role, userName, pathname, navItems, onSignOut }: Sideb
 interface SidebarProps {
   role?: string;
   userName?: string;
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
 }
 
-export default function Sidebar({ role = 'student', userName = 'User' }: SidebarProps) {
+export default function Sidebar({
+  role = 'student',
+  userName = 'User',
+  mobileOpen: controlledMobileOpen,
+  setMobileOpen: controlledSetMobileOpen,
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+
+  const isControlled = controlledMobileOpen !== undefined;
+  const mobileOpen = isControlled ? controlledMobileOpen : internalMobileOpen;
+  const setMobileOpen = isControlled ? controlledSetMobileOpen! : setInternalMobileOpen;
   const navItems = ROLE_NAV[role] || ROLE_NAV.student;
 
   // Close sidebar on route change (mobile)
@@ -193,23 +204,25 @@ export default function Sidebar({ role = 'student', userName = 'User' }: Sidebar
 
   return (
     <>
-      {/* Mobile Hamburger Button */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 lg:hidden w-10 h-10 rounded-xl glass-card flex items-center justify-center text-white hover:bg-white/20 transition"
-        aria-label="Open menu"
-      >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect y="2" width="18" height="2" rx="1" fill="currentColor" />
-          <rect y="8" width="18" height="2" rx="1" fill="currentColor" />
-          <rect y="14" width="18" height="2" rx="1" fill="currentColor" />
-        </svg>
-      </button>
+      {/* Fallback Mobile Hamburger Button only if not controlled by parent layout */}
+      {!isControlled && (
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="fixed top-3.5 left-3.5 z-40 lg:hidden w-9 h-9 rounded-xl glass-card flex items-center justify-center text-white hover:bg-white/20 transition shadow-lg"
+          aria-label="Open menu"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect y="2" width="18" height="2" rx="1" fill="currentColor" />
+            <rect y="8" width="18" height="2" rx="1" fill="currentColor" />
+            <rect y="14" width="18" height="2" rx="1" fill="currentColor" />
+          </svg>
+        </button>
+      )}
 
       {/* Mobile Overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}

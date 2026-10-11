@@ -320,10 +320,10 @@ export default function AIVoiceAssistant() {
     };
 
     return (
-        <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start gap-2 max-w-sm">
+        <div className="fixed bottom-3 left-3 sm:bottom-5 sm:left-5 z-40 flex flex-col items-start gap-2 max-w-[calc(100vw-4.5rem)] sm:max-w-sm">
             {/* AI Response Card Modal */}
             {aiResponse && (
-                <div className="glass-card p-4 rounded-2xl border-2 border-[#6C63FF] bg-[#0f0c29]/95 text-white shadow-2xl space-y-2 w-80 animate-in fade-in slide-in-from-bottom-3 backdrop-blur-xl relative">
+                <div className="glass-card p-4 rounded-2xl border-2 border-[#6C63FF] bg-[#0f0c29]/95 text-white shadow-2xl space-y-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-3 backdrop-blur-xl relative">
                     <button
                         onClick={() => setAiResponse(null)}
                         className="absolute top-2 right-2 p-1 text-white/50 hover:text-white rounded-lg transition"
@@ -342,7 +342,7 @@ export default function AIVoiceAssistant() {
 
             {/* Active Command Toast */}
             {activeToast && !aiResponse && (
-                <div className={`glass-card p-4 rounded-2xl border-2 bg-[#0f0c29]/95 text-white shadow-2xl space-y-1 w-80 animate-in fade-in slide-in-from-bottom-3 backdrop-blur-xl ${activeToast.type === 'error' ? 'border-red-500' : activeToast.type === 'info' ? 'border-[#6C63FF]' : 'border-[#00C9A7]'
+                <div className={`glass-card p-3.5 sm:p-4 rounded-2xl border-2 bg-[#0f0c29]/95 text-white shadow-2xl space-y-1 w-72 sm:w-80 max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-3 backdrop-blur-xl ${activeToast.type === 'error' ? 'border-red-500' : activeToast.type === 'info' ? 'border-[#6C63FF]' : 'border-[#00C9A7]'
                     }`}>
                     <div className="flex items-center gap-2 font-bold text-xs" style={{ color: activeToast.type === 'error' ? '#ef4444' : activeToast.type === 'info' ? '#6C63FF' : '#00C9A7' }}>
                         {activeToast.type === 'error' ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -354,7 +354,7 @@ export default function AIVoiceAssistant() {
 
             {/* Permission / Browser Error Card */}
             {errorMsg && (
-                <div className="glass-card p-3 rounded-2xl border border-red-500/50 bg-red-950/80 text-white text-xs font-semibold flex items-start gap-2 shadow-lg w-72">
+                <div className="glass-card p-3 rounded-2xl border border-red-500/50 bg-red-950/80 text-white text-xs font-semibold flex items-start gap-2 shadow-lg w-72 max-w-[calc(100vw-2rem)]">
                     <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                     <span>{errorMsg}</span>
                 </div>
@@ -362,37 +362,38 @@ export default function AIVoiceAssistant() {
 
             {/* Listening / Processing Indicator Badge */}
             {isListening && !activeToast && !errorMsg && (
-                <div className="glass-card px-4 py-2 rounded-2xl border border-pink-500/40 bg-pink-500/10 text-white text-xs font-bold flex items-center gap-2 animate-pulse shadow-lg">
-                    <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-ping" />
-                    <span>AI Voice Listening... Say "Open Lessons"</span>
+                <div className="glass-card px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl border border-pink-500/40 bg-pink-500/10 text-white text-[10px] sm:text-xs font-bold flex items-center gap-2 animate-pulse shadow-lg">
+                    <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping" />
+                    <span className="truncate max-w-[200px] sm:max-w-none">AI Listening...</span>
                 </div>
             )}
 
             {/* Mic Toggle Button */}
             <button
                 onClick={toggleListening}
-                className={`px-4 py-3 rounded-full shadow-2xl flex items-center gap-2.5 text-xs font-black transition-all border-2 transform hover:scale-105 active:scale-95 ${isListening
+                className={`px-3 py-2.5 sm:px-4 sm:py-3 rounded-full shadow-2xl flex items-center gap-2 text-xs font-black transition-all border-2 transform hover:scale-105 active:scale-95 ${isListening
                     ? 'bg-gradient-to-r from-pink-600 to-rose-600 border-pink-300 text-white animate-pulse'
                     : isProcessing
                         ? 'bg-gradient-to-r from-[#6C63FF] to-indigo-600 border-indigo-300 text-white'
                         : 'bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] border-white/20 text-white hover:border-white/40'
                     }`}
                 title="Toggle AI Voice Assistant (e.g. 'Open Lessons' or ask questions)"
+                aria-label="Toggle AI Voice Assistant"
             >
                 {isProcessing ? (
                     <>
-                        <Loader2 className="w-4 h-4 text-white animate-spin" />
-                        <span>AI Thinking...</span>
+                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" />
+                        <span>Thinking...</span>
                     </>
                 ) : isListening ? (
                     <>
-                        <Mic className="w-4 h-4 text-white animate-bounce" />
-                        <span>Listening AI Voice...</span>
+                        <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-bounce" />
+                        <span>Listening...</span>
                     </>
                 ) : (
                     <>
-                        <Mic className="w-4 h-4 text-white" />
-                        <span>🎙️ AI Voice Command</span>
+                        <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                        <span>AI Voice</span>
                     </>
                 )}
             </button>
