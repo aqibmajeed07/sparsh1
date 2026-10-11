@@ -13,5 +13,5 @@ httpx>=0.25.0
 torch
 torchvision
 mediapipe
-opencv-python
+opencv-python-headless
 Pillow

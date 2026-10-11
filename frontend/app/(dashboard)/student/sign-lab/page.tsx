@@ -243,11 +243,10 @@ export default function SignLabPage() {
         const finalResults = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
         setLiveTranscript(finalResults);
 
-        // If the current result is final, send to backend
-        const lastResult = e.results[e.results.length - 1];
-        if (lastResult.isFinal) {
+        const lastResult = e.results && e.results.length > 0 ? e.results[e.results.length - 1] : null;
+        if (lastResult && lastResult.isFinal) {
           try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/isl-grammar`, {
+            const res = await fetch('/api/isl-grammar', {
               method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: lastResult[0].transcript, lang: selectedLang })
             });
             const data = await res.json();
@@ -357,7 +356,7 @@ export default function SignLabPage() {
         if (!imageSrc) return;
 
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/predict-sign`, {
+          const res = await fetch('/api/predict-sign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: imageSrc })
@@ -366,7 +365,7 @@ export default function SignLabPage() {
 
           if (data.finger_tracking) {
             setFingerTracking(data.finger_tracking);
-            if (canvasRef.current && data.finger_tracking.landmarks) {
+            if (canvasRef.current && data.finger_tracking.landmarks && data.finger_tracking.landmarks.length > 0) {
               if (canvasRef.current.width !== canvasRef.current.clientWidth) {
                 canvasRef.current.width = canvasRef.current.clientWidth;
                 canvasRef.current.height = canvasRef.current.clientHeight;
@@ -381,24 +380,28 @@ export default function SignLabPage() {
             }
           }
 
-          if (data.sign && data.is_confident) {
-            // Formatting class names (e.g., '01_palm' -> 'Palm', 'A' -> 'A')
-            let displaySign = data.sign.replace(/^\d+_/, '').replace(/_/g, ' ');
-            displaySign = displaySign.charAt(0).toUpperCase() + displaySign.slice(1);
+          if (data.sign) {
+            const displaySign = data.clean_sign || data.sign.replace(/^\d+_/, '').replace(/_/g, ' ');
+            const formatted = displaySign.charAt(0).toUpperCase() + displaySign.slice(1);
+            const gestureHint = data.finger_tracking?.gesture_hint ? ` • ${data.finger_tracking.gesture_hint}` : '';
 
-            setVisionTranslation(`Sign detected: ${displaySign} (${data.confidence.toFixed(1)}%)`);
+            if (data.is_confident) {
+              setVisionTranslation(`Sign detected: ${formatted} (${data.confidence.toFixed(1)}%)${gestureHint}`);
 
-            // Add sign to avatar if it matches dictionary!
-            setTranslatorQueue(prev => {
-              const token = displaySign.toLowerCase();
-              // Avoid spamming the same sign
-              if (prev[prev.length - 1] === token) return prev;
+              // Add sign to avatar if it matches dictionary!
+              setTranslatorQueue(prev => {
+                const token = formatted.toLowerCase();
+                // Avoid spamming the same sign
+                if (prev[prev.length - 1] === token) return prev;
 
-              // Speak the sign out loud!
-              playTTS(displaySign, selectedLang);
+                // Speak the sign out loud!
+                playTTS(formatted, selectedLang);
 
-              return [...prev, token];
-            });
+                return [...prev, token];
+              });
+            } else {
+              setVisionTranslation(`Detecting: ${formatted} (${data.confidence.toFixed(1)}%)${gestureHint}`);
+            }
           } else if (data.message) {
             setVisionTranslation(data.message);
           }

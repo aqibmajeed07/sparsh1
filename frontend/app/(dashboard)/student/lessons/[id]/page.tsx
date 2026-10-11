@@ -66,7 +66,7 @@ export default function LessonPlayerPage() {
       if (!textToSign) return;
 
       // Fetch ISL grammar tokens from backend
-      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/isl-grammar`, {
+      fetch('/api/isl-grammar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: textToSign, lang: 'en-IN' })

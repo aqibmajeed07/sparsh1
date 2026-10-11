@@ -114,7 +114,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
 
       try {
         // Send spoken text to AI backend for ISL Grammar Simplification
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/isl-grammar`, {
+        const res = await fetch('/api/isl-grammar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: transcript }),
@@ -188,7 +188,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
           ctx.drawImage(videoEl, 0, 0, 224, 224);
           const b64 = canvas.toDataURL('image/jpeg', 0.8);
 
-          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/predict-sign`, {
+          const res = await fetch('/api/predict-sign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: b64 }),
@@ -198,7 +198,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
             const data = await res.json();
             if (data.sign && data.is_confident) {
               // Capitalize sign name and format it
-              const detectedWord = data.sign.replace(/_/g, ' ').toUpperCase();
+              const detectedWord = (data.clean_sign || data.sign.replace(/^\d+_/, '')).replace(/_/g, ' ').toUpperCase();
               setVisionPhrase(detectedWord);
 
               // Let the avatar mirror the detected sign

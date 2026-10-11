@@ -8,14 +8,19 @@ import importlib
 # Configuration
 DEVICE = "cpu"
 
-# Bundled local model directory (inside app for self-contained deployment)
+# Candidate model locations
 LOCAL_MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../models"))
-# Fallback dev model directory
-DEV_MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Niral AI Model/Niral AI Model"))
+CANDIDATE_DEV_DIRS = [
+    r"g:\niral final\Niral_AI_Model\Niral AI Model",
+    r"g:\niral final\Niral AI Model\Niral AI Model",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Niral_AI_Model/Niral AI Model")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Niral AI Model/Niral AI Model")),
+    LOCAL_MODELS_DIR,
+]
 
 IMG_SIZE = 224
-PAD = 30
-CONF_THRESH = 35.0
+PAD = 40
+CONF_THRESH = 22.0
 
 # 51 classes fallback
 DEFAULT_CLASSES = sorted([
@@ -23,23 +28,47 @@ DEFAULT_CLASSES = sorted([
 ], key=str.lower)
 
 
+def format_sign_label(raw: str) -> str:
+    """Format technical class names into human-readable sign labels."""
+    if not raw:
+        return ""
+    mapping = {
+        "01_palm": "Palm", "02_l": "L-Sign", "03_fist": "Fist", "04_fist_moved": "Fist Move",
+        "05_thumb": "Thumbs Up", "06_index": "Index Pointing", "07_ok": "OK Sign",
+        "08_palm_moved": "Palm Move", "09_c": "C-Sign", "10_down": "Down Pointing",
+        "del": "Delete", "space": "Space", "nothing": "No Sign"
+    }
+    if raw in mapping:
+        return mapping[raw]
+    clean = raw.replace("_", " ")
+    return clean.capitalize() if len(clean) > 1 and clean.islower() else clean
+
+
 def get_model_paths():
-    """Locate model files prioritizing bundled app models for production deployment."""
+    """Locate model files prioritizing Niral AI Model folder for custom trained weights."""
     pytorch_env = os.environ.get("SIGN_MODEL_PATH")
     landmark_env = os.environ.get("LANDMARK_MODEL_PATH")
 
-    local_pytorch = os.path.join(LOCAL_MODELS_DIR, "best_sign_model.pth")
-    local_landmark = os.path.join(LOCAL_MODELS_DIR, "hand_landmarker.task")
+    if pytorch_env and os.path.exists(pytorch_env):
+        pytorch_path = pytorch_env
+    else:
+        pytorch_path = None
+        for dev_dir in CANDIDATE_DEV_DIRS:
+            candidate = os.path.join(dev_dir, "best_sign_model.pth")
+            if os.path.exists(candidate):
+                pytorch_path = candidate
+                break
 
-    dev_pytorch = os.path.join(DEV_MODELS_DIR, "best_sign_model.pth")
-    dev_landmark = os.path.join(DEV_MODELS_DIR, "hand_landmarker.task")
+    if landmark_env and os.path.exists(landmark_env):
+        landmark_path = landmark_env
+    else:
+        landmark_path = None
+        for dev_dir in CANDIDATE_DEV_DIRS:
+            candidate = os.path.join(dev_dir, "hand_landmarker.task")
+            if os.path.exists(candidate):
+                landmark_path = candidate
+                break
 
-    pytorch_path = pytorch_env if pytorch_env and os.path.exists(pytorch_env) else (
-        local_pytorch if os.path.exists(local_pytorch) else dev_pytorch
-    )
-    landmark_path = landmark_env if landmark_env and os.path.exists(landmark_env) else (
-        local_landmark if os.path.exists(local_landmark) else dev_landmark
-    )
     return pytorch_path, landmark_path
 
 
@@ -67,18 +96,18 @@ def compute_finger_tracking(landmarks: list, handedness: str = "Right") -> dict:
     palm_size = max(d3(0, 9), 1e-5)  # Wrist (0) to Middle MCP (9)
 
     # Extension test using distance from wrist relative to PIP
-    index_ext = d3(0, 8) > (d3(0, 6) * 1.15)
-    middle_ext = d3(0, 12) > (d3(0, 10) * 1.15)
-    ring_ext = d3(0, 16) > (d3(0, 14) * 1.15)
-    pinky_ext = d3(0, 20) > (d3(0, 18) * 1.15)
+    index_ext = d3(0, 8) > (d3(0, 6) * 1.12)
+    middle_ext = d3(0, 12) > (d3(0, 10) * 1.12)
+    ring_ext = d3(0, 16) > (d3(0, 14) * 1.12)
+    pinky_ext = d3(0, 20) > (d3(0, 18) * 1.12)
 
     # Thumb extension: tip (4) distance from pinky MCP (17) vs IP (3), and wrist (0) vs MCP (2)
-    thumb_ext = (d3(4, 17) > d3(3, 17) * 1.10) and (d3(0, 4) > d3(0, 2) * 1.15)
+    thumb_ext = (d3(4, 17) > d3(3, 17) * 1.08) and (d3(0, 4) > d3(0, 2) * 1.12)
 
     # Pinch detection between thumb tip (4) and index tip (8)
     pinch_dist = d3(4, 8)
     pinch_ratio = pinch_dist / palm_size
-    is_pinch = pinch_ratio < 0.38
+    is_pinch = pinch_ratio < 0.40
 
     fingers = {
         "thumb": {
@@ -163,8 +192,8 @@ class SignDetector:
 
             pytorch_path, landmark_path = get_model_paths()
 
-            if not os.path.exists(pytorch_path) or not os.path.exists(landmark_path):
-                print(f"[SignDetector] Model paths not found: {pytorch_path}, {landmark_path}")
+            if not pytorch_path or not os.path.exists(pytorch_path):
+                print(f"[SignDetector] Model path not found: {pytorch_path}")
                 return False
 
             self.classes = load_classes()
@@ -180,21 +209,55 @@ class SignDetector:
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
             ])
 
-            base_opts = mp_python.BaseOptions(model_asset_path=landmark_path)
-            lm_opts = mp_vision.HandLandmarkerOptions(
-                base_options=base_opts,
-                running_mode=mp_vision.RunningMode.IMAGE,
-                num_hands=1,
-                min_hand_detection_confidence=0.55,
-                min_hand_presence_confidence=0.55
-            )
-            self.landmarker = mp_vision.HandLandmarker.create_from_options(lm_opts)
+            if landmark_path and os.path.exists(landmark_path):
+                base_opts = mp_python.BaseOptions(model_asset_path=landmark_path)
+                lm_opts = mp_vision.HandLandmarkerOptions(
+                    base_options=base_opts,
+                    running_mode=mp_vision.RunningMode.IMAGE,
+                    num_hands=1,
+                    min_hand_detection_confidence=0.30,
+                    min_hand_presence_confidence=0.30
+                )
+                self.landmarker = mp_vision.HandLandmarker.create_from_options(lm_opts)
+            else:
+                self.landmarker = None
+
             self.ready = True
             print(f"[SignDetector] Ready with bundled models.")
             return True
         except Exception as e:
             print(f"[SignDetector] Load warning: {e}")
             return False
+
+    def _classify_roi(self, roi_bgr) -> tuple:
+        """Classify a BGR image crop with MobileNetV3 and return top predictions."""
+        if roi_bgr is None or roi_bgr.size == 0 or roi_bgr.shape[0] < 10 or roi_bgr.shape[1] < 10:
+            return None, 0.0, []
+
+        cv2 = importlib.import_module('cv2')
+        torch = importlib.import_module('torch')
+        PILImage = importlib.import_module('PIL.Image')
+
+        rgb = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2RGB)
+        x = self.tf(PILImage.fromarray(rgb)).unsqueeze(0).to(DEVICE)
+        with torch.no_grad():
+            probs = torch.softmax(self.model(x), dim=1)
+
+        k = min(3, len(self.classes))
+        top_probs, top_indices = torch.topk(probs, k, dim=1)
+
+        top_preds = [
+            {
+                "sign": self.classes[top_indices[0][i].item()],
+                "clean_sign": format_sign_label(self.classes[top_indices[0][i].item()]),
+                "confidence": round(top_probs[0][i].item() * 100, 2)
+            }
+            for i in range(k)
+        ]
+
+        conf_val = round(top_probs[0][0].item() * 100, 2)
+        sign = self.classes[top_indices[0][0].item()]
+        return sign, conf_val, top_preds
 
     def predict_base64(self, b64_str: str) -> dict:
         if not self._ensure_loaded():
@@ -203,9 +266,7 @@ class SignDetector:
         try:
             cv2 = importlib.import_module('cv2')
             np = importlib.import_module('numpy')
-            torch = importlib.import_module('torch')
             mp_framework = importlib.import_module('mediapipe')
-            PILImage = importlib.import_module('PIL.Image')
 
             # Decode base64
             if "," in b64_str:
@@ -219,72 +280,141 @@ class SignDetector:
 
             H, W = frame.shape[:2]
 
-            # MediaPipe Hand Landmark Detection
-            mp_img = mp_framework.Image(
-                image_format=mp_framework.ImageFormat.SRGB,
-                data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            )
-            result = self.landmarker.detect(mp_img)
+            # Try MediaPipe Hand Landmarker first
+            result = None
+            if self.landmarker is not None:
+                mp_img = mp_framework.Image(
+                    image_format=mp_framework.ImageFormat.SRGB,
+                    data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                )
+                try:
+                    result = self.landmarker.detect(mp_img)
+                except Exception:
+                    result = None
 
-            if not result.hand_landmarks:
-                return {"sign": None, "confidence": 0, "message": "No hand detected"}
+            # ── PATH A: MediaPipe found hand landmarks ──
+            if result and result.hand_landmarks:
+                raw_landmarks = result.hand_landmarks[0]
+                landmarks_list = [
+                    {"x": round(float(lm.x), 4), "y": round(float(lm.y), 4), "z": round(float(lm.z), 4)}
+                    for lm in raw_landmarks
+                ]
 
-            raw_landmarks = result.hand_landmarks[0]
-            landmarks_list = [
-                {"x": round(float(lm.x), 4), "y": round(float(lm.y), 4), "z": round(float(lm.z), 4)}
-                for lm in raw_landmarks
-            ]
+                handedness = "Right"
+                hand_conf = 1.0
+                if result.handedness and len(result.handedness) > 0 and len(result.handedness[0]) > 0:
+                    handedness = result.handedness[0][0].category_name
+                    hand_conf = round(float(result.handedness[0][0].score), 3)
 
-            handedness = "Right"
-            hand_conf = 1.0
-            if result.handedness and len(result.handedness) > 0 and len(result.handedness[0]) > 0:
-                handedness = result.handedness[0][0].category_name
-                hand_conf = round(float(result.handedness[0][0].score), 3)
+                finger_tracking = compute_finger_tracking(landmarks_list, handedness)
+                finger_tracking["handedness_score"] = hand_conf
 
-            # Compute 3D finger tracking analytics
-            finger_tracking = compute_finger_tracking(landmarks_list, handedness)
-            finger_tracking["handedness_score"] = hand_conf
+                # Centered square bounding box with 45% margin
+                pts = [(lm.x, lm.y) for lm in raw_landmarks]
+                xs = [p[0] * W for p in pts]
+                ys = [p[1] * H for p in pts]
+                cx = (min(xs) + max(xs)) / 2
+                cy = (min(ys) + max(ys)) / 2
+                box_size = max(max(xs) - min(xs), max(ys) - min(ys)) * 1.45
+                x1 = max(0, int(cx - box_size / 2))
+                y1 = max(0, int(cy - box_size / 2))
+                x2 = min(W, int(cx + box_size / 2))
+                y2 = min(H, int(cy + box_size / 2))
 
-            # Dynamic Bounding Box
-            pts = [(lm.x, lm.y) for lm in raw_landmarks]
-            xs = [p[0] * W for p in pts]
-            ys = [p[1] * H for p in pts]
-            x1 = max(0, int(min(xs)) - PAD)
-            y1 = max(0, int(min(ys)) - PAD)
-            x2 = min(W, int(max(xs)) + PAD)
-            y2 = min(H, int(max(ys)) + PAD)
+                finger_tracking["bbox"] = {
+                    "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                    "width": x2 - x1, "height": y2 - y1,
+                    "frame_width": W, "frame_height": H
+                }
+                finger_tracking["landmarks"] = landmarks_list
 
-            bbox = {
-                "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                "width": x2 - x1, "height": y2 - y1,
-                "frame_width": W, "frame_height": H
-            }
-            finger_tracking["bbox"] = bbox
-            finger_tracking["landmarks"] = landmarks_list
+                # Classify the hand crop
+                roi = frame[y1:y2, x1:x2]
+                sign_lm, conf_lm, top_lm = self._classify_roi(roi)
 
-            roi = frame[y1:y2, x1:x2]
-            if roi.size == 0 or roi.shape[0] < 10 or roi.shape[1] < 10:
+                # If confidence is moderate, also evaluate center crop of the frame
+                sign_center, conf_center, top_center = self._classify_roi(frame[int(H*0.1):int(H*0.9), int(W*0.1):int(W*0.9)])
+
+                if conf_center > conf_lm and conf_center > 40.0:
+                    best_sign, best_conf, best_top = sign_center, conf_center, top_center
+                else:
+                    best_sign, best_conf, best_top = sign_lm, conf_lm, top_lm
+
                 return {
-                    "sign": None,
-                    "confidence": 0,
-                    "message": "Hand too close to edge",
-                    "finger_tracking": finger_tracking
+                    "sign": best_sign,
+                    "clean_sign": format_sign_label(best_sign),
+                    "confidence": best_conf,
+                    "is_confident": best_conf >= CONF_THRESH,
+                    "top_predictions": best_top,
+                    "finger_tracking": finger_tracking,
+                    "model_source": "Niral AI Model (MobileNetV3 + MediaPipe 3D Finger Tracking)"
                 }
 
-            rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-            x = self.tf(PILImage.fromarray(rgb)).unsqueeze(0).to(DEVICE)
-            with torch.no_grad():
-                probs = torch.softmax(self.model(x), dim=1)
-            conf, idx = torch.max(probs, 1)
+            # ── PATH B: MediaPipe did not find hand (Fists, A, S, E, pointing, angled) ──
+            # Use Direct MobileNetV3 Multi-Scale Vision on Center Crop & Full Frame
+            crop_size = int(min(H, W) * 0.75)
+            cx, cy = W // 2, H // 2
+            x1 = max(0, cx - crop_size // 2)
+            y1 = max(0, cy - crop_size // 2)
+            x2 = min(W, x1 + crop_size)
+            y2 = min(H, y1 + crop_size)
 
-            conf_val = round(conf.item() * 100, 2)
-            sign = self.classes[idx.item()]
+            center_roi = frame[y1:y2, x1:x2]
+            sign_center, conf_center, top_center = self._classify_roi(center_roi)
+            sign_full, conf_full, top_full = self._classify_roi(frame)
+
+            if conf_center >= conf_full:
+                best_sign, best_conf, best_top = sign_center, conf_center, top_center
+            else:
+                best_sign, best_conf, best_top = sign_full, conf_full, top_full
+
+            # If confidence is reasonable and not background "nothing"
+            if best_sign and best_sign != "nothing" and best_conf >= 18.0:
+                # Synthesize gesture hint from known sign semantics
+                if best_sign in ["03_fist", "04_fist_moved", "A", "S", "E", "M", "N", "T"]:
+                    gesture = "Fist / Closed Fingers"
+                elif best_sign in ["01_palm", "08_palm_moved", "5", "B", "paper"]:
+                    gesture = "Open Palm"
+                elif best_sign in ["06_index", "1", "D"]:
+                    gesture = "Pointing"
+                elif best_sign in ["05_thumb"]:
+                    gesture = "Thumbs Up"
+                elif best_sign in ["07_ok", "F"]:
+                    gesture = "Pinch / OK Sign"
+                elif best_sign in ["2", "V", "scissors"]:
+                    gesture = "Victory / Peace"
+                elif best_sign in ["02_l", "L"]:
+                    gesture = "L-Sign"
+                else:
+                    gesture = "Hand Detected"
+
+                finger_tracking = {
+                    "handedness": "Detected",
+                    "handedness_score": round(best_conf / 100.0, 2),
+                    "gesture_hint": gesture,
+                    "extended_count": 0 if "Fist" in gesture else (5 if "Open Palm" in gesture else 1),
+                    "is_pinch": "Pinch" in gesture,
+                    "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "width": x2 - x1, "height": y2 - y1, "frame_width": W, "frame_height": H},
+                    "landmarks": []
+                }
+
+                return {
+                    "sign": best_sign,
+                    "clean_sign": format_sign_label(best_sign),
+                    "confidence": best_conf,
+                    "is_confident": best_conf >= CONF_THRESH,
+                    "top_predictions": best_top,
+                    "finger_tracking": finger_tracking,
+                    "model_source": "Niral AI Model (MobileNetV3 + MediaPipe 3D Finger Tracking)"
+                }
 
             return {
-                "sign": sign,
-                "confidence": conf_val,
-                "is_confident": conf_val >= CONF_THRESH,
-                "finger_tracking": finger_tracking
+                "sign": None,
+                "confidence": 0,
+                "clean_sign": "",
+                "top_predictions": [],
+                "message": "Position hand in camera frame",
+                "model_source": "Niral AI Model"
             }
 
         except Exception as e:
@@ -294,4 +424,5 @@ class SignDetector:
 
 # Singleton instance
 detector = SignDetector()
+
 
