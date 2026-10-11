@@ -1,108 +1,210 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAccessibility } from '@/components/AccessibilityContext';
-import { Award, Flame, Sparkles, CheckCircle2, Zap, Trophy, Calendar, Star, ShieldCheck } from 'lucide-react';
+import { Flame, Sparkles, CheckCircle2, Trophy, ShieldCheck } from 'lucide-react';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 export default function RewardsPage() {
   const [loading, setLoading] = useState(true);
-  const [streak, setStreak] = useState(3);
-  const [xp, setXp] = useState(450);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [xp, setXp] = useState(0);
+  const [tier, setTier] = useState('Bronze Explorer');
   const [checkedInToday, setCheckedInToday] = useState(false);
   const [badges, setBadges] = useState<any[]>([]);
+  const [claiming, setClaiming] = useState(false);
   const { speak } = useAccessibility();
 
-  useEffect(() => {
-    const loadRewards = async () => {
+  // Function to load live rewards data from backend & database
+  const loadRewardsData = useCallback(async (targetUserId?: string) => {
+    try {
+      const activeId = targetUserId || userId;
+      if (!activeId) return;
+
+      // 1. Try calling the FastAPI real-time rewards endpoint
+      let backendData: any = null;
       try {
-        // Read local streak & XP cache
-        const savedStreak = localStorage.getItem('sparsh_streak_days');
-        const savedXp = localStorage.getItem('sparsh_xp_points');
-        const lastCheckin = localStorage.getItem('sparsh_last_checkin');
+        const res = await fetch(`${BACKEND_URL}/api/student/rewards/${activeId}`, {
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          backendData = await res.json();
+        }
+      } catch (err) {
+        console.warn('Backend rewards endpoint unreachable, using Supabase direct query:', err);
+      }
 
-        const todayStr = new Date().toDateString();
-        const isToday = lastCheckin === todayStr;
+      if (backendData && backendData.status === 'success') {
+        setStreak(backendData.streak_days || 0);
+        setXp(backendData.xp || 50);
+        setTier(backendData.tier || 'Bronze Explorer');
+        setCheckedInToday(Boolean(backendData.checked_in_today));
+        if (Array.isArray(backendData.badges) && backendData.badges.length > 0) {
+          setBadges(backendData.badges);
+        }
+      } else {
+        // Fallback: Direct Supabase query
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', activeId)
+          .single();
 
-        const currentStreak = savedStreak ? parseInt(savedStreak) : 3;
-        const currentXp = savedXp ? parseInt(savedXp) : 450;
+        const { data: progressList } = await supabase
+          .from('student_progress')
+          .select('lesson_id, completion_percent, time_spent_seconds')
+          .eq('student_id', activeId);
+
+        const currentStreak = profile?.streak_days || 0;
+        const totalLessons = progressList?.filter((p: any) => (p.completion_percent || 0) >= 100).length || profile?.total_lessons_done || 0;
+        const totalSign = profile?.total_sign_hours || 0;
+
+        const calculatedXp = 50 + (totalLessons * 100) + (currentStreak * 50) + Math.round(totalSign * 75);
+        const calculatedTier = calculatedXp >= 1000 ? 'Diamond Master' : calculatedXp >= 500 ? 'Gold Scholar' : calculatedXp >= 250 ? 'Silver Learner' : 'Bronze Explorer';
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const isToday = profile?.last_active ? profile.last_active.startsWith(todayStr) : false;
 
         setStreak(currentStreak);
-        setXp(currentXp);
+        setXp(calculatedXp);
+        setTier(calculatedTier);
         setCheckedInToday(isToday);
 
-        // Initialize 10+ Gamified Badges
-        const lessons = 6;
-        const signs = 52;
-        const ocrScans = 8;
-        const streakDays = currentStreak;
-
         setBadges([
-          { id: 'b1', title: 'First Step', desc: 'Completed your very first lesson', icon: '🐣', color: '#1cb0f6', unlocked: true, progress: 100 },
-          { id: 'b2', title: 'On Fire!', desc: 'Achieved a 3-day learning streak', icon: '🔥', color: '#ff9600', unlocked: streakDays >= 3, progress: Math.min(100, Math.round((streakDays / 3) * 100)) },
-          { id: 'b3', title: 'Sign Master', desc: 'Learned 50 ISL signs in Sign Lab', icon: '🤟', color: '#00C9A7', unlocked: signs >= 50, progress: 100 },
-          { id: 'b4', title: 'OCR Scholar', desc: 'Scanned 5 textbook pages with OCR Reader', icon: '📖', color: '#6C63FF', unlocked: ocrScans >= 5, progress: 100 },
-          { id: 'b5', title: 'AI Pioneer', desc: 'Asked 10 questions to NCERT AI Tutor', icon: '🤖', color: '#ce82ff', unlocked: true, progress: 100 },
-          { id: 'b6', title: 'Tactile Genius', desc: 'Paired SenseBand & RFID Smart Card', icon: '⚡', color: '#ff4b4b', unlocked: true, progress: 100 },
-          { id: 'b7', title: 'Quiz Champion', desc: 'Scored 100% on assessment quiz', icon: '💯', color: '#ffc800', unlocked: lessons >= 5, progress: 100 },
-          { id: 'b8', title: 'Bookworm', desc: 'Spent 10 hours learning this month', icon: '🐛', color: '#1cb0f6', unlocked: true, progress: 100 },
-          { id: 'b9', title: 'Speed Learner', desc: 'Completed 3 lessons in a single day', icon: '⚡', color: '#ff9600', unlocked: lessons >= 3, progress: 100 },
-          { id: 'b10', title: 'Accessibility Champion', desc: 'Tried 3 personalized accessibility profiles', icon: '♿', color: '#00C9A7', unlocked: true, progress: 100 },
+          { id: 'b1', title: 'First Step', desc: 'Completed your very first lesson', icon: '🐣', color: '#1cb0f6', unlocked: totalLessons >= 1, progress: totalLessons >= 1 ? 100 : 0 },
+          { id: 'b2', title: 'On Fire!', desc: 'Achieved a 3-day learning streak', icon: '🔥', color: '#ff9600', unlocked: currentStreak >= 3, progress: Math.min(100, Math.round((currentStreak / 3) * 100)) },
+          { id: 'b3', title: 'Sign Master', desc: 'Learned ISL signs in Sign Lab', icon: '🤟', color: '#00C9A7', unlocked: totalSign >= 1, progress: Math.min(100, Math.round(totalSign * 100)) },
+          { id: 'b4', title: 'Curriculum Scholar', desc: 'Completed 5 textbook curriculum lessons', icon: '📖', color: '#6C63FF', unlocked: totalLessons >= 5, progress: Math.min(100, Math.round((totalLessons / 5) * 100)) },
+          { id: 'b5', title: 'AI Pioneer', desc: 'Maintained an active 5-day streak', icon: '🤖', color: '#ce82ff', unlocked: currentStreak >= 5, progress: Math.min(100, Math.round((currentStreak / 5) * 100)) },
+          { id: 'b6', title: 'Tactile Genius', desc: 'Paired SenseBand or custom accessibility preferences', icon: '⚡', color: '#ff4b4b', unlocked: Boolean(profile?.accessibility_prefs || profile?.disability_type), progress: 100 },
+          { id: 'b7', title: 'Quiz Champion', desc: 'Passed assessment quiz evaluation', icon: '💯', color: '#ffc800', unlocked: totalLessons >= 4, progress: Math.min(100, Math.round((totalLessons / 4) * 100)) },
+          { id: 'b8', title: 'Bookworm', desc: 'Invested dedicated study hours on Sparsh', icon: '🐛', color: '#1cb0f6', unlocked: totalLessons >= 3, progress: Math.min(100, Math.round((totalLessons / 3) * 100)) },
+          { id: 'b9', title: 'Speed Learner', desc: 'Completed 3 curriculum lessons', icon: '⚡', color: '#ff9600', unlocked: totalLessons >= 3, progress: Math.min(100, Math.round((totalLessons / 3) * 100)) },
+          { id: 'b10', title: 'Accessibility Champion', desc: 'Enrolled with inclusive learning profile', icon: '♿', color: '#00C9A7', unlocked: Boolean(profile?.disability_type), progress: 100 },
         ]);
+      }
+    } catch (e) {
+      console.error('Error loading rewards:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
-        // Try sync with Supabase profiles
+  useEffect(() => {
+    let channel: any = null;
+
+    const init = async () => {
+      try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-          if (profile) {
-            if (profile.streak_days) setStreak(profile.streak_days);
+          setUserId(user.id);
+          await loadRewardsData(user.id);
+
+          // Real-time Postgres subscription on profiles and student_progress
+          channel = supabase.channel(`realtime_rewards_${user.id}`)
+            .on(
+              'postgres_changes',
+              { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+              () => {
+                loadRewardsData(user.id);
+              }
+            )
+            .on(
+              'postgres_changes',
+              { event: '*', schema: 'public', table: 'student_progress', filter: `student_id=eq.${user.id}` },
+              () => {
+                loadRewardsData(user.id);
+              }
+            )
+            .subscribe();
+        } else {
+          // Check local cached sparsh_user
+          const localUserStr = localStorage.getItem('sparsh_user');
+          if (localUserStr) {
+            try {
+              const localUser = JSON.parse(localUserStr);
+              if (localUser?.id) {
+                setUserId(localUser.id);
+                await loadRewardsData(localUser.id);
+              }
+            } catch (err) { }
           }
+          setLoading(false);
         }
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.error('Failed to init rewards:', err);
+        setLoading(false);
       }
-      setLoading(false);
     };
-    loadRewards();
-  }, []);
+
+    init();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [loadRewardsData]);
 
   const handleClaimStreak = async () => {
-    if (checkedInToday) return;
+    if (checkedInToday || claiming) return;
 
+    setClaiming(true);
     const newStreak = streak + 1;
     const newXp = xp + 50;
-    const todayStr = new Date().toDateString();
 
+    // Optimistic UI update
     setStreak(newStreak);
     setXp(newXp);
     setCheckedInToday(true);
 
-    localStorage.setItem('sparsh_streak_days', newStreak.toString());
-    localStorage.setItem('sparsh_xp_points', newXp.toString());
-    localStorage.setItem('sparsh_last_checkin', todayStr);
-
     speak(`Awesome! Daily check-in complete. You earned 50 XP points and your streak is now ${newStreak} days!`);
 
-    // Trigger SenseBand Haptics
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/senseband/ai-emotion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: `Streak check-in complete! Streak ${newStreak} days` })
-      });
-    } catch (e) { }
-
-    // Sync to Supabase if authenticated
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('profiles').update({ streak_days: newStreak }).eq('id', user.id);
+      // 1. Post to backend endpoint
+      if (userId) {
+        await fetch(`${BACKEND_URL}/api/student/rewards/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: userId }),
+        });
       }
-    } catch (e) { }
+
+      // 2. Direct Supabase update for immediate consistency
+      if (userId) {
+        await supabase
+          .from('profiles')
+          .update({
+            streak_days: newStreak,
+            last_active: new Date().toISOString()
+          })
+          .eq('id', userId);
+      }
+
+      // 3. Trigger SenseBand Haptic Emotion Feedback
+      try {
+        await fetch(`${BACKEND_URL}/api/senseband/ai-emotion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: `Streak check-in complete! Streak ${newStreak} days` }),
+        });
+      } catch (e) { }
+
+      // Reload full state to sync any newly unlocked badges
+      if (userId) {
+        await loadRewardsData(userId);
+      }
+    } catch (e) {
+      console.error('Checkin claim error:', e);
+    } finally {
+      setClaiming(false);
+    }
   };
 
   const unlockedCount = badges.filter(b => b.unlocked).length;
-  const currentTier = xp >= 1000 ? 'Diamond Master' : xp >= 500 ? 'Gold Scholar' : xp >= 250 ? 'Silver Learner' : 'Bronze Explorer';
 
   return (
     <div className="space-y-8 pb-12">
@@ -153,7 +255,7 @@ export default function RewardsPage() {
 
               <button
                 onClick={handleClaimStreak}
-                disabled={checkedInToday}
+                disabled={checkedInToday || claiming}
                 className={`px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-xl flex items-center gap-2 ${checkedInToday
                   ? 'bg-[#00C9A7]/20 border border-[#00C9A7]/50 text-[#00C9A7] cursor-default'
                   : 'bg-gradient-to-r from-[#ff9600] to-amber-500 text-white hover:scale-105 active:scale-95'
@@ -165,7 +267,7 @@ export default function RewardsPage() {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-5 h-5 text-yellow-200 animate-spin" /> Claim Today's Streak (+50 XP)
+                    <Sparkles className="w-5 h-5 text-yellow-200 animate-spin" /> {claiming ? 'Checking In...' : "Claim Today's Streak (+50 XP)"}
                   </>
                 )}
               </button>
@@ -174,7 +276,7 @@ export default function RewardsPage() {
             {/* 7-Day Weekly Calendar Tracker */}
             <div className="grid grid-cols-7 gap-2 pt-2">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
-                const isDone = idx < (streak % 7 || 7);
+                const isDone = idx < (streak % 7 || (streak > 0 ? 7 : 0));
                 return (
                   <div
                     key={day}
@@ -199,7 +301,7 @@ export default function RewardsPage() {
                   <ShieldCheck className="w-5 h-5" /> Scholar Rank Tier
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#ce82ff]/20 text-[#ce82ff] text-xs font-bold border border-[#ce82ff]/40">
-                  {currentTier}
+                  {tier}
                 </span>
               </div>
               <p className="text-white text-sm font-semibold">Keep completing lessons to rank up to Diamond Master status.</p>
@@ -233,10 +335,10 @@ export default function RewardsPage() {
               {badges.map((badge) => (
                 <div
                   key={badge.id}
-                  onClick={() => speak(`${badge.title} badge: ${badge.desc}`)}
+                  onClick={() => speak(`${badge.title} badge: ${badge.desc}. Status: ${badge.unlocked ? 'Unlocked' : 'In progress'}`)}
                   className={`glass-card p-5 flex flex-col items-center text-center transition-all cursor-pointer rounded-2xl border-2 transform hover:-translate-y-1 ${badge.unlocked
-                    ? `border-[${badge.color}] bg-[#1e1e32]/80 shadow-xl`
-                    : 'border-white/10 opacity-60 grayscale-[0.6] hover:grayscale-0'
+                    ? 'border-[#00C9A7]/40 bg-[#1e1e32]/80 shadow-xl'
+                    : 'border-white/10 opacity-70 grayscale-[0.5] hover:grayscale-0'
                     }`}
                   style={{
                     borderColor: badge.unlocked ? badge.color : 'rgba(255, 255, 255, 0.1)',

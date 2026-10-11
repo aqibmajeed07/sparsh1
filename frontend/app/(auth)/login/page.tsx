@@ -47,16 +47,6 @@ export default function LoginPage() {
   const handleRoleSelect = (role: 'student' | 'teacher' | 'admin') => {
     setActiveRole(role);
     setError('');
-    if (role === 'student') {
-      setValue('email', 'student@sparsh.edu');
-      setValue('password', 'student123');
-    } else if (role === 'teacher') {
-      setValue('email', 'teacher@sparsh.edu');
-      setValue('password', 'teacher123');
-    } else {
-      setValue('email', 'admin@sparsh.edu');
-      setValue('password', 'admin123');
-    }
   };
 
   const onSubmit = async (data: LoginFormData) => {
@@ -279,7 +269,7 @@ export default function LoginPage() {
                   {...register('email')}
                   type="email"
                   autoComplete="email"
-                  placeholder="name@school.edu or student@sparsh.edu"
+                  placeholder="name@institution.edu"
                   className="w-full pl-10 pr-4 py-3 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
                   aria-label="Email address"
                 />
@@ -363,36 +353,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Pre-fill Bar */}
-          <div className="mt-6 pt-4 border-t border-white/10 text-center">
-            <span className="text-[11px] text-slate-400 block mb-2 font-medium">
-              Demo Credentials (Click to autofill)
-            </span>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleRoleSelect('student')}
-                className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 text-slate-300 border border-white/10 hover:bg-slate-800 transition font-medium"
-              >
-                🎓 Student
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRoleSelect('teacher')}
-                className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 text-slate-300 border border-white/10 hover:bg-slate-800 transition font-medium"
-              >
-                👨‍🏫 Teacher
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRoleSelect('admin')}
-                className="text-xs px-3 py-1.5 rounded-lg bg-slate-900 text-slate-300 border border-white/10 hover:bg-slate-800 transition font-medium"
-              >
-                ⚡ Admin
-              </button>
-            </div>
-          </div>
 
           {/* Footer Link */}
           <div className="mt-6 pt-4 border-t border-white/10 text-center">
