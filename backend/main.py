@@ -85,16 +85,14 @@ except Exception as e:
 # ─── Health ───────────────────────────────────────────────────────────────────
 
 @app.get("/")
+@app.head("/")
 @app.get("/health")
+@app.head("/health")
 @app.get("/api/health")
+@app.head("/api/health")
 def health():
     diag = {}
     if 'detector' in globals() and detector:
-        if not getattr(detector, 'ready', False):
-            try:
-                detector._ensure_loaded()
-            except Exception as e:
-                pass
         diag = {
             "ready": getattr(detector, "ready", False),
             "last_error": getattr(detector, "last_error", None),
@@ -105,7 +103,7 @@ def health():
     return {
         "status": "ok",
         "service": "Sparsh AI Backend",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "supabase_connected": supabase is not None,
         "ai_model_ready": getattr(detector, 'ready', False) if 'detector' in globals() else False,
         "finger_tracking": True,
@@ -243,7 +241,14 @@ def predict_sign(job: PredictSignJob):
     if not detector.ready:
         loaded = detector._ensure_loaded()
         if not loaded:
-            raise HTTPException(status_code=503, detail="Sign detector models are currently initializing")
+            return {
+                "sign": None,
+                "confidence": 0.0,
+                "is_confident": False,
+                "message": "AI model is initializing, please wait...",
+                "finger_tracking": None,
+                "model_source": "Niral AI Model"
+            }
     
     result = detector.predict_base64(job.image)
     if "error" in result:

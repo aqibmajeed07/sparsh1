@@ -172,37 +172,46 @@ def compute_finger_tracking(landmarks: list, handedness: str = "Right") -> dict:
     }
 
 
+import threading
+
 class SignDetector:
     def __init__(self):
         self.ready = False
+        self._lock = threading.Lock()
         self.model = None
         self.landmarker = None
         self.tf = None
         self.classes = load_classes()
+        self.last_error = None
+        self.pytorch_path = None
+        self.landmark_path = None
 
     def _ensure_loaded(self):
         if self.ready:
             return True
-        try:
-            self.last_error = None
-            cv2 = importlib.import_module('cv2')
-            np = importlib.import_module('numpy')
-            torch = importlib.import_module('torch')
-            torch.set_num_threads(1)
-            if hasattr(torch, 'set_num_interop_threads'):
-                try:
-                    torch.set_num_interop_threads(1)
-                except Exception:
-                    pass
-            torch.set_grad_enabled(False)
-            nn = importlib.import_module('torch.nn')
-            models = importlib.import_module('torchvision.models')
-            transforms = importlib.import_module('torchvision.transforms')
-            PILImage = importlib.import_module('PIL.Image')
+        with self._lock:
+            if self.ready:
+                return True
+            try:
+                self.last_error = None
+                cv2 = importlib.import_module('cv2')
+                np = importlib.import_module('numpy')
+                torch = importlib.import_module('torch')
+                torch.set_num_threads(1)
+                if hasattr(torch, 'set_num_interop_threads'):
+                    try:
+                        torch.set_num_interop_threads(1)
+                    except Exception:
+                        pass
+                torch.set_grad_enabled(False)
+                nn = importlib.import_module('torch.nn')
+                models = importlib.import_module('torchvision.models')
+                transforms = importlib.import_module('torchvision.transforms')
+                PILImage = importlib.import_module('PIL.Image')
 
-            pytorch_path, landmark_path = get_model_paths()
-            self.pytorch_path = pytorch_path
-            self.landmark_path = landmark_path
+                pytorch_path, landmark_path = get_model_paths()
+                self.pytorch_path = pytorch_path
+                self.landmark_path = landmark_path
 
             if not pytorch_path or not os.path.exists(pytorch_path):
                 self.last_error = f"PyTorch model not found at {pytorch_path}"
