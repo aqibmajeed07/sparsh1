@@ -16,9 +16,10 @@ import {
   EyeOff,
   Building,
   GraduationCap,
-  Sparkles,
   ArrowRight,
   Upload,
+  Award,
+  CheckCircle2,
 } from 'lucide-react';
 
 const registerSchema = z.object({
@@ -121,55 +122,115 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-y-auto bg-slate-950 font-sans">
-      {/* ── Background: Inclusive Classroom Photograph with Professional Overlay ── */}
-      <div className="fixed inset-0 z-0">
+    <div className="min-h-screen w-full bg-slate-950 flex flex-col lg:grid lg:grid-cols-12 font-sans selection:bg-[#6C63FF]/30 selection:text-white">
+      
+      {/* ── LEFT SIDE: Government-Style Classroom Visual & Institutional Badges ── */}
+      <div className="relative w-full lg:col-span-5 xl:col-span-5 h-56 sm:h-72 lg:h-auto lg:min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-12 overflow-hidden border-b lg:border-b-0 lg:border-r border-white/10">
+        {/* Full Image */}
         <Image
           src="/inclusive_classroom.jpg"
-          alt="Inclusive Education Classroom"
+          alt="Inclusive Education Classroom in India"
           fill
           priority
-          className="object-cover object-center filter brightness-[0.70] contrast-[1.05]"
+          className="object-cover object-center filter brightness-[0.85] contrast-[1.05]"
         />
-        {/* Professional deep navy vignette & frosted backdrop */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/50 backdrop-blur-[2px]" />
-      </div>
 
-      {/* ── Foreground Container ── */}
-      <div className="relative z-10 w-full max-w-2xl my-8">
-        
-        {/* Top Header Badge */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-white/10 backdrop-blur-md mb-3 shadow-lg">
-            <span className="w-2 h-2 rounded-full bg-[#00C9A7]" />
-            <span className="text-xs font-semibold text-slate-200 tracking-wide uppercase">
-              Sparsh Inclusive Education Platform
-            </span>
+        {/* Sophisticated gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/80 pointer-events-none" />
+
+        {/* Top Header / Emblem */}
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-extrabold text-xl shadow-lg">
+              S
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-white font-black text-lg tracking-tight">SPARSH</span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  स्पर्श
+                </span>
+              </div>
+              <p className="text-slate-300 text-[11px] font-medium tracking-wide">
+                National Inclusive Education Initiative
+              </p>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Create an Account
-          </h1>
-          <p className="text-slate-300 text-xs sm:text-sm mt-1">
-            Join thousands of students and educators in accessible learning
-          </p>
+
+          <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 border border-white/10 text-[11px] text-slate-300 font-medium backdrop-blur-md">
+            <Award className="w-3.5 h-3.5 text-[#00C9A7]" />
+            <span>Govt. RPwD Aligned</span>
+          </div>
         </div>
 
-        {/* Registration Card */}
-        <div className="w-full bg-slate-900/90 border border-white/15 rounded-2xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl shadow-black/60">
+        {/* Bottom Educational Mission Panel (visible on desktop) */}
+        <div className="relative z-10 hidden lg:block space-y-4 max-w-md">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-white/15 text-xs text-slate-200 font-semibold backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-[#00C9A7] animate-pulse" />
+            <span>Inclusive Registration</span>
+          </div>
+
+          <h2 className="text-3xl xl:text-4xl font-extrabold text-white leading-tight tracking-tight">
+            Join the inclusive{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-400">
+              learning movement.
+            </span>
+          </h2>
+
+          <p className="text-slate-200 text-sm leading-relaxed font-normal">
+            Whether you are a student, teacher, or educational institution, Sparsh bridges communication and accessibility gaps with intelligent AI tools.
+          </p>
+
+          <div className="space-y-2 pt-2 text-xs text-slate-200 font-medium">
+            <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-900/70 border border-white/10 backdrop-blur-sm">
+              <CheckCircle2 className="w-4 h-4 text-[#00C9A7] shrink-0" />
+              <span>Multi-sensory learning tailored for your needs</span>
+            </div>
+            <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-900/70 border border-white/10 backdrop-blur-sm">
+              <CheckCircle2 className="w-4 h-4 text-[#6C63FF] shrink-0" />
+              <span>Free accessibility tools for certified schools & NGOs</span>
+            </div>
+            <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-900/70 border border-white/10 backdrop-blur-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Zero hardware requirement — runs in any modern browser</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── RIGHT SIDE: Registration Portal Form ── */}
+      <div className="w-full lg:col-span-7 xl:col-span-7 flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-14 bg-slate-950 overflow-y-auto min-h-screen">
+        
+        <div className="max-w-xl w-full mx-auto my-auto py-4">
           
+          {/* Header */}
+          <div className="mb-6">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#00C9A7] block mb-1">
+              New Member Registration
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Create an Inclusive Account
+            </h1>
+            <p className="text-slate-400 text-xs sm:text-sm mt-1">
+              Complete your profile to customize your accessibility learning experience
+            </p>
+          </div>
+
           {/* Error Alert */}
           {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs sm:text-sm flex items-start gap-2.5">
+            <div className="mb-5 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs sm:text-sm flex items-start gap-2.5">
               <span className="text-sm mt-0.5">⚠️</span>
               <div className="flex-1 font-medium">{error}</div>
             </div>
           )}
 
+          {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             {/* Full Name */}
             <div className="md:col-span-2">
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Full Name *
               </label>
               <div className="relative">
@@ -179,7 +240,7 @@ export default function RegisterPage() {
                 <input
                   {...register('full_name')}
                   placeholder="e.g. Arjun Sharma"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
                 />
               </div>
               {errors.full_name && (
@@ -189,7 +250,7 @@ export default function RegisterPage() {
 
             {/* Email */}
             <div>
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Email Address *
               </label>
               <div className="relative">
@@ -200,7 +261,7 @@ export default function RegisterPage() {
                   {...register('email')}
                   type="email"
                   placeholder="you@school.edu"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
                 />
               </div>
               {errors.email && (
@@ -210,12 +271,12 @@ export default function RegisterPage() {
 
             {/* Role */}
             <div>
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 I am a *
               </label>
               <select
                 {...register('role')}
-                className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
               >
                 <option value="student" className="bg-slate-900 text-white">Student</option>
                 <option value="teacher" className="bg-slate-900 text-white">Teacher / Educator</option>
@@ -226,7 +287,7 @@ export default function RegisterPage() {
 
             {/* Institution / School */}
             <div className="md:col-span-2">
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Institution / School / NGO Name *
               </label>
               <div className="relative">
@@ -236,7 +297,7 @@ export default function RegisterPage() {
                 <input
                   {...register('institution_name')}
                   placeholder="e.g. Nav Disha School for the Deaf, Delhi"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 placeholder-slate-500 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
                 />
               </div>
               {errors.institution_name && (
@@ -248,12 +309,12 @@ export default function RegisterPage() {
             {role === 'student' && (
               <>
                 <div>
-                  <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+                  <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                     Class / Grade *
                   </label>
                   <select
                     {...register('grade')}
-                    className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                    className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
                   >
                     <option value="" className="bg-slate-900 text-slate-400">Select Grade</option>
                     {['1','2','3','4','5','6','7','8','9','10','11','12'].map(g => (
@@ -263,12 +324,12 @@ export default function RegisterPage() {
                 </div>
 
                 <div>
-                  <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+                  <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                     Education Board
                   </label>
                   <select
                     {...register('board')}
-                    className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                    className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
                   >
                     {['CBSE','ICSE','State Board','IB','NIOS'].map(b => (
                       <option key={b} value={b} className="bg-slate-900 text-white">{b}</option>
@@ -280,7 +341,7 @@ export default function RegisterPage() {
 
             {/* Password */}
             <div>
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Password *
               </label>
               <div className="relative">
@@ -291,7 +352,7 @@ export default function RegisterPage() {
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Min 8 characters"
-                  className="w-full pl-10 pr-10 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 placeholder-slate-500 focus:border-[#6C63FF] focus:outline-none focus:ring-1 focus:ring-[#6C63FF] transition"
+                  className="w-full pl-10 pr-10 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 placeholder-slate-500 focus:border-[#6C63FF] focus:outline-none focus:ring-1 focus:ring-[#6C63FF] transition"
                 />
                 <button
                   type="button"
@@ -309,7 +370,7 @@ export default function RegisterPage() {
 
             {/* Confirm Password */}
             <div>
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Confirm Password *
               </label>
               <div className="relative">
@@ -320,7 +381,7 @@ export default function RegisterPage() {
                   {...register('confirm_password')}
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Re-enter password"
-                  className="w-full pl-10 pr-10 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 placeholder-slate-500 focus:border-[#6C63FF] focus:outline-none focus:ring-1 focus:ring-[#6C63FF] transition"
+                  className="w-full pl-10 pr-10 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 placeholder-slate-500 focus:border-[#6C63FF] focus:outline-none focus:ring-1 focus:ring-[#6C63FF] transition"
                 />
                 <button
                   type="button"
@@ -338,12 +399,12 @@ export default function RegisterPage() {
 
             {/* Accessibility Needs */}
             <div>
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Accessibility Needs
               </label>
               <select
                 {...register('disability_type')}
-                className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
               >
                 <option value="none" className="bg-slate-900 text-white">None (Standard)</option>
                 <option value="hearing" className="bg-slate-900 text-white">Hearing Impaired (Sign Language)</option>
@@ -355,12 +416,12 @@ export default function RegisterPage() {
 
             {/* Language Preference */}
             <div>
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 block">
                 Language Preference
               </label>
               <select
                 {...register('language_preference')}
-                className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-950/50 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
+                className="w-full px-3.5 py-2.5 text-sm text-white rounded-xl border border-white/15 bg-slate-900/90 focus:border-[#00C9A7] focus:outline-none focus:ring-1 focus:ring-[#00C9A7] transition"
               >
                 <option value="hi" className="bg-slate-900 text-white">Hindi (हिंदी)</option>
                 <option value="en" className="bg-slate-900 text-white">English</option>
@@ -369,14 +430,14 @@ export default function RegisterPage() {
 
             {/* Caregiver Photo (Optional) */}
             <div className="md:col-span-2">
-              <label className="text-slate-200 text-xs font-semibold uppercase tracking-wider mb-1 block">
+              <label className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1 block">
                 Caregiver / Family Photo (Optional)
               </label>
               <p className="text-slate-400 text-xs mb-2">
-                Upload a photo to personalize the AI companion with a familiar, calming face.
+                Upload a photo to personalize the AI companion with a familiar face.
               </p>
               <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 border border-white/10 text-xs font-medium text-slate-200 hover:bg-slate-700 cursor-pointer transition">
+                <label className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs font-medium text-slate-200 hover:bg-slate-800 cursor-pointer transition">
                   <Upload className="w-3.5 h-3.5" />
                   <span>Choose Photo</span>
                   <input
@@ -400,11 +461,11 @@ export default function RegisterPage() {
             </div>
 
             {/* Submit Button */}
-            <div className="md:col-span-2 mt-3">
+            <div className="md:col-span-2 mt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] hover:from-[#5b52f9] hover:to-[#00b899] text-white font-semibold text-sm shadow-md shadow-[#6C63FF]/20 active:scale-[0.99] transition duration-150 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] hover:from-[#5b52f9] hover:to-[#00b899] text-white font-bold text-sm shadow-md shadow-[#6C63FF]/20 active:scale-[0.99] transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -437,12 +498,13 @@ export default function RegisterPage() {
 
         </div>
 
-        {/* Bottom Footer */}
-        <div className="text-center mt-6 text-slate-400 text-xs">
-          <span>&copy; {new Date().getFullYear()} Sparsh Inclusive Learning. All rights reserved.</span>
+        {/* Institutional Footer */}
+        <div className="text-center text-slate-500 text-xs pt-4 border-t border-white/5">
+          <span>&copy; {new Date().getFullYear()} Sparsh Inclusive Learning Initiative • Government of India Standards Compliant</span>
         </div>
 
       </div>
+
     </div>
   );
 }
