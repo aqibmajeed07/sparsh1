@@ -12,6 +12,7 @@ export interface CommandContext {
   navigate: (path: string) => void;
   confirm: (promptText: string) => Promise<boolean>;
   tts: SentenceChunkedTTS;
+  setCapturedImage?: (imgUrl: string) => void;
 }
 
 export interface CommandResult {

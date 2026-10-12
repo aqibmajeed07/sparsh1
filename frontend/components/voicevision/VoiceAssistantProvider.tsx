@@ -19,6 +19,9 @@ export interface VoiceAssistantContextType {
   transcript: string;
   lastResponse: string | null;
   errorMessage: string | null;
+  lastCapturedImage: string | null;
+  setLastCapturedImage: (url: string | null) => void;
+  refreshCameraPreview: () => Promise<void>;
   toggleListening: () => void;
   executeCommand: (rawInput: string) => Promise<void>;
   speak: (text: string, onDone?: () => void) => void;
@@ -37,6 +40,7 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
   const [transcript, setTranscript] = useState<string>('');
   const [lastResponse, setLastResponse] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastCapturedImage, setLastCapturedImage] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean>(true);
 
   // Core engines
@@ -136,6 +140,7 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
         confirm: (promptText: string) =>
           globalCommandRegistry.confirmationManager.requestConfirmation(promptText, speak),
         tts: ttsRef.current,
+        setCapturedImage: (imgUrl: string) => setLastCapturedImage(imgUrl),
       };
 
       try {
@@ -182,6 +187,33 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     },
     [pathname, router, speak]
   );
+
+  const refreshCameraPreview = useCallback(async () => {
+    setState('thinking');
+    speak('Refreshing smart glasses view.');
+    try {
+      const res = await fetch('/api/glasses/vision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Describe what is in front of me clearly and concisely for an inclusive learner.' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.image_url) {
+          setLastCapturedImage(data.image_url);
+        }
+        if (data.description) {
+          speak(data.description);
+        }
+      } else {
+        speak('Glasses camera is not reachable.');
+      }
+    } catch {
+      speak('Could not connect to glasses camera.');
+    } finally {
+      setState('idle');
+    }
+  }, [speak]);
 
   // ── Toggle Listening Action ─────────────────────────────────────────────────
   const toggleListening = useCallback(() => {
@@ -276,6 +308,9 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
         transcript,
         lastResponse,
         errorMessage,
+        lastCapturedImage,
+        setLastCapturedImage,
+        refreshCameraPreview,
         toggleListening,
         executeCommand,
         speak,

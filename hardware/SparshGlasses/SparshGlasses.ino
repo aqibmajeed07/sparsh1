@@ -296,6 +296,14 @@ void handleCapture() {
   }
 
   setLed(true);
+
+  // Discard any stale buffer in FIFO so exposure and image are 100% current
+  camera_fb_t *stale = esp_camera_fb_get();
+  if (stale) {
+    esp_camera_fb_return(stale);
+  }
+
+  // Get fresh live frame from sensor
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     setLed(false);
@@ -303,7 +311,7 @@ void handleCapture() {
     return;
   }
 
-  server.sendHeader("Cache-Control", "no-store");
+  server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   server.setContentLength(fb->len);
   server.send(200, "image/jpeg", "");
   server.client().write(fb->buf, fb->len);

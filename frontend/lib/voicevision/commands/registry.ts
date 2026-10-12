@@ -412,6 +412,9 @@ export class CommandRegistry {
           }
 
           const data = await res.json();
+          if (data.image_url && ctx.setCapturedImage) {
+            ctx.setCapturedImage(data.image_url);
+          }
           if (data.description) {
             ctx.speak(data.description);
           } else {
@@ -451,6 +454,9 @@ export class CommandRegistry {
           }
 
           const data = await res.json();
+          if (data.image_url && ctx.setCapturedImage) {
+            ctx.setCapturedImage(data.image_url);
+          }
           if (data.description) {
             ctx.tts.speak(data.description);
           } else {

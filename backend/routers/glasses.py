@@ -213,11 +213,25 @@ async def vision(req: VisionRequest, user=Depends(get_current_user)):
         raise HTTPException(400, f"Unknown mode '{req.mode}'")
     jpeg = await fetch_frame()
     text = await run_vision(jpeg, prompt)
+    b64_image = base64.b64encode(jpeg).decode("utf-8")
     return {
         "mode": req.mode,
         "text": text,
-        "description": text  # Supports both user format and VoiceVision registry
+        "description": text,  # Supports both user format and VoiceVision registry
+        "image_url": f"data:image/jpeg;base64,{b64_image}"
     }
+
+
+@router.get("/capture")
+async def capture_frame():
+    """Returns the live JPEG image frame directly for live camera video/preview in the UI."""
+    from fastapi.responses import Response
+    jpeg = await fetch_frame()
+    return Response(
+        content=jpeg,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+    )
 
 
 @router.post("/frame")

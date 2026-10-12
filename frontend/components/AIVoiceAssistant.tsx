@@ -32,6 +32,7 @@ export default function AIVoiceAssistant() {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [aiResponse, setAiResponse] = useState<string | null>(null);
+    const [glassesImage, setGlassesImage] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isSupported, setIsSupported] = useState(true);
     const [activeToast, setActiveToast] = useState<{ message: string; target: string; type?: 'success' | 'info' | 'error' } | null>(null);
@@ -191,6 +192,9 @@ export default function AIVoiceAssistant() {
 
                 if (res.ok) {
                     const data = await res.json();
+                    if (data.image_url) {
+                        setGlassesImage(data.image_url);
+                    }
                     const desc = data.description || data.text || 'I could not identify the scene.';
                     setAiResponse(desc);
                     speak(desc);
@@ -399,6 +403,11 @@ export default function AIVoiceAssistant() {
                         <Bot className="w-4 h-4" />
                         <span>SPARSH Voice AI Answer</span>
                     </div>
+                    {glassesImage && (
+                        <div className="rounded-xl overflow-hidden border border-white/20 bg-black aspect-video max-h-36 flex items-center justify-center my-1.5">
+                            <img src={glassesImage} alt="Smart Glasses View" className="w-full h-full object-contain" />
+                        </div>
+                    )}
                     <p className="text-white text-xs font-medium leading-relaxed max-h-40 overflow-y-auto pr-1">
                         {aiResponse}
                     </p>

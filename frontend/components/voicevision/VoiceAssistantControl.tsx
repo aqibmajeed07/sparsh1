@@ -18,6 +18,7 @@ import {
   ChevronUp,
   X,
   VolumeX,
+  Camera,
 } from 'lucide-react';
 
 export function VoiceAssistantControl() {
@@ -26,6 +27,8 @@ export function VoiceAssistantControl() {
     transcript,
     lastResponse,
     errorMessage,
+    lastCapturedImage,
+    refreshCameraPreview,
     toggleListening,
     stopAll,
     isSupported,
@@ -85,7 +88,7 @@ export function VoiceAssistantControl() {
         className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-50 flex flex-col items-start gap-2.5 max-w-[calc(100vw-2rem)] sm:max-w-md select-none"
       >
         {/* Status / Response Modal Card */}
-        {(expanded || state !== 'idle' || transcript || lastResponse || errorMessage || showTypedInput) && (
+        {(expanded || state !== 'idle' || transcript || lastResponse || lastCapturedImage || errorMessage || showTypedInput) && (
           <div className="glass-card w-80 sm:w-96 max-w-[calc(100vw-2rem)] p-4 rounded-2xl border-2 border-[#6C63FF]/60 bg-[#0f0c29]/95 text-white shadow-2xl backdrop-blur-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center justify-between border-b border-white/10 pb-2">
               <div className="flex items-center gap-2">
@@ -106,6 +109,15 @@ export function VoiceAssistantControl() {
                 <span className="text-[10px] text-white/40 font-mono">(Alt+V)</span>
               </div>
               <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={refreshCameraPreview}
+                  className="p-1 text-white/60 hover:text-[#00C9A7] rounded-md hover:bg-white/10 transition"
+                  title="Test & Snap Smart Glasses Camera View"
+                  aria-label="Snap smart glasses camera preview"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowTypedInput(!showTypedInput)}
@@ -150,6 +162,32 @@ export function VoiceAssistantControl() {
                 <p className="text-xs sm:text-sm text-white font-medium bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">
                   "{transcript}"
                 </p>
+              </div>
+            )}
+
+            {/* ── Live Smart Glasses Camera View Preview ── */}
+            {lastCapturedImage && (
+              <div className="space-y-1.5 bg-black/40 p-2 rounded-xl border border-white/10">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-[#00C9A7] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Glasses Camera View
+                  </span>
+                  <button
+                    type="button"
+                    onClick={refreshCameraPreview}
+                    className="text-[10px] text-[#38bdf8] hover:text-[#7dd3fc] font-medium flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <Camera className="w-2.5 h-2.5" /> Snap Again
+                  </button>
+                </div>
+                <div className="relative rounded-lg overflow-hidden border border-white/20 bg-black aspect-video max-h-48 flex items-center justify-center">
+                  <img
+                    src={lastCapturedImage}
+                    alt="Smart Glasses Live View"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
             )}
 
