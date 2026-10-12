@@ -1,24 +1,16 @@
 /*
-  SPARSH VoiceVision - Glasses Camera Node
-  Hardware : ESP32-S3 camera board + OV3660 / OV2640
+  SPARSH VoiceVision — Smart Glasses Camera Node (All-In-One Standalone)
+  Hardware : ESP32-S3 / ESP32 Camera Board + OV3660 / OV2640
   Role     : On-demand JPEG capture for the SPARSH FastAPI backend.
-             Audio is NOT handled here - the phone/laptop does speech in/out
-             through a Bluetooth / bone-conduction headset or speakers.
+             Standalone file — No external header files (secrets.h or camera_pins.h) needed!
 
-  HTTP API (LAN only; every request needs header  X-Device-Token: <DEVICE_TOKEN>)
-    GET /status   -> JSON: ok, connected, battery, ip, rssi, sensor id, psram, heap, uptime
-    GET /capture  -> one JPEG frame (image/jpeg)
-  Optional tactile button: press -> capture -> POST JPEG to BACKEND_FRAME_URL
-
-  Arduino IDE settings ("esp32 by Espressif Systems" core, v3.x):
-    Board            : "XIAO_ESP32S3" or "ESP32S3 Dev Module"
-    PSRAM            : "OPI PSRAM"  if the module is marked ...R8 (e.g. N16R8)
-                       "QSPI PSRAM" if the module is marked ...R2
-    Flash Size       : match the module marking (N8 = 8MB, N16 = 16MB)
+  Arduino IDE Settings ("esp32 by Espressif Systems" core):
+    Board            : "XIAO_ESP32S3" or "ESP32S3 Dev Module" (or "AI Thinker ESP32-CAM")
+    PSRAM            : "OPI PSRAM"  if module is marked ...R8 (e.g. N16R8)
+                       "QSPI PSRAM" if module is marked ...R2
+    Flash Size       : match module (8MB or 16MB)
     Partition Scheme : "Huge APP (3MB No OTA/1MB SPIFFS)"
-    USB CDC On Boot  : "Enabled" if Serial Monitor runs over the native USB port
-
-  Sketch folder must contain: SparshGlasses.ino, secrets.h, camera_pins.h
+    USB CDC On Boot  : "Enabled" if Serial Monitor runs over native USB
 */
 
 #include "esp_camera.h"
@@ -26,46 +18,155 @@
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
-#include "secrets.h"   // WIFI_SSID, WIFI_PASS, DEVICE_TOKEN, BACKEND_FRAME_URL
 
-// ===================== USER CONFIGURATION =====================
+// ==============================================================================
+// 1. WI-FI & BACKEND CREDENTIALS (EMBEDDED DIRECTLY - NO SECRETS.H NEEDED)
+// ==============================================================================
+#define WIFI_SSID          "Aqib"
+#define WIFI_PASS          "mir1aqib"
 
-// 1) Camera pin map. Uncomment the ONE model that your board confirms:
+// Shared authentication token matching GLASSES_DEVICE_TOKEN in backend/.env
+#define DEVICE_TOKEN       "sparsh_glasses_aqib_mir_2026"
+
+// Laptop/Server URL where the physical button pushes frames
+// Laptop IP on Wi-Fi: 10.93.154.216:8000
+#define BACKEND_FRAME_URL  "http://10.93.154.216:8000/api/glasses/frame"
+
+#define HOSTNAME           "sparsh-glasses"
+
+// ==============================================================================
+// 2. CAMERA MODEL SELECTION (EMBEDDED DIRECTLY - NO CAMERA_PINS.H NEEDED)
+// ==============================================================================
+// Uncomment EXACTLY ONE camera model that matches your board:
 #define CAMERA_MODEL_XIAO_ESP32S3          // Recommended: Seeed XIAO ESP32S3 Sense
 // #define CAMERA_MODEL_ESP32S3_EYE        // Espressif ESP32-S3-EYE
 // #define CAMERA_MODEL_FREENOVE_ESP32S3_CAM  // Freenove ESP32-S3 WROVER CAM
-// #define CAMERA_MODEL_AI_THINKER         // AI-Thinker ESP32-CAM
-#include "camera_pins.h"
+// #define CAMERA_MODEL_AI_THINKER         // AI-Thinker ESP32-CAM (Classic)
 
-// 2) Optional I/O Pins:
-// For XIAO ESP32S3 Sense: GPIO 0 is the on-board BOOT button, GPIO 21 is user LED.
-// Set to -1 if you do not want to use physical button/LED.
-#define BUTTON_PIN      0    // Push button to GND (internal pull-up used; GPIO 0 on XIAO)
-#define STATUS_LED_PIN  21   // LED indicator; lights while capturing / uploading
+// ─── Camera Pinout Definitions ──────────────────────────────────────────────
+#if defined(CAMERA_MODEL_XIAO_ESP32S3)
+  #define PWDN_GPIO_NUM     -1
+  #define RESET_GPIO_NUM    -1
+  #define XCLK_GPIO_NUM     10
+  #define SIOD_GPIO_NUM     40
+  #define SIOC_GPIO_NUM     39
 
-// 3) Image settings. XGA (1024x768) suits scene description; try FRAMESIZE_SXGA
-// or FRAMESIZE_UXGA for reading fine printed pages (bigger files, slower).
-#define FRAME_SIZE      FRAMESIZE_XGA
-#define JPEG_QUALITY    12   // lower = better quality, larger file (10..20)
+  #define Y9_GPIO_NUM       48
+  #define Y8_GPIO_NUM       11
+  #define Y7_GPIO_NUM       12
+  #define Y6_GPIO_NUM       14
+  #define Y5_GPIO_NUM       16
+  #define Y4_GPIO_NUM       18
+  #define Y3_GPIO_NUM       17
+  #define Y2_GPIO_NUM       15
+  #define VSYNC_GPIO_NUM    38
+  #define HREF_GPIO_NUM     47
+  #define PCLK_GPIO_NUM     13
 
-#define HOSTNAME        "sparsh-glasses"
+  #define BUTTON_PIN        0     // BOOT button on XIAO
+  #define STATUS_LED_PIN    21    // XIAO User LED (active low)
+  #define LED_ACTIVE_LOW    true
 
-// ==============================================================
+#elif defined(CAMERA_MODEL_ESP32S3_EYE)
+  #define PWDN_GPIO_NUM     -1
+  #define RESET_GPIO_NUM    -1
+  #define XCLK_GPIO_NUM     15
+  #define SIOD_GPIO_NUM      4
+  #define SIOC_GPIO_NUM      5
 
+  #define Y9_GPIO_NUM       16
+  #define Y8_GPIO_NUM       17
+  #define Y7_GPIO_NUM       18
+  #define Y6_GPIO_NUM       12
+  #define Y5_GPIO_NUM       10
+  #define Y4_GPIO_NUM        8
+  #define Y3_GPIO_NUM        9
+  #define Y2_GPIO_NUM       11
+  #define VSYNC_GPIO_NUM     6
+  #define HREF_GPIO_NUM      7
+  #define PCLK_GPIO_NUM     13
+
+  #define BUTTON_PIN        0
+  #define STATUS_LED_PIN    3
+  #define LED_ACTIVE_LOW    false
+
+#elif defined(CAMERA_MODEL_FREENOVE_ESP32S3_CAM)
+  #define PWDN_GPIO_NUM     -1
+  #define RESET_GPIO_NUM    -1
+  #define XCLK_GPIO_NUM     15
+  #define SIOD_GPIO_NUM      4
+  #define SIOC_GPIO_NUM      5
+
+  #define Y9_GPIO_NUM       16
+  #define Y8_GPIO_NUM       17
+  #define Y7_GPIO_NUM       18
+  #define Y6_GPIO_NUM       12
+  #define Y5_GPIO_NUM       10
+  #define Y4_GPIO_NUM        8
+  #define Y3_GPIO_NUM        9
+  #define Y2_GPIO_NUM       11
+  #define VSYNC_GPIO_NUM     6
+  #define HREF_GPIO_NUM      7
+  #define PCLK_GPIO_NUM     13
+
+  #define BUTTON_PIN        0
+  #define STATUS_LED_PIN    2
+  #define LED_ACTIVE_LOW    false
+
+#elif defined(CAMERA_MODEL_AI_THINKER)
+  #define PWDN_GPIO_NUM     32
+  #define RESET_GPIO_NUM    -1
+  #define XCLK_GPIO_NUM      0
+  #define SIOD_GPIO_NUM     26
+  #define SIOC_GPIO_NUM     27
+
+  #define Y9_GPIO_NUM       35
+  #define Y8_GPIO_NUM       34
+  #define Y7_GPIO_NUM       39
+  #define Y6_GPIO_NUM       36
+  #define Y5_GPIO_NUM       21
+  #define Y4_GPIO_NUM       19
+  #define Y3_GPIO_NUM       18
+  #define Y2_GPIO_NUM        5
+  #define VSYNC_GPIO_NUM    25
+  #define HREF_GPIO_NUM     23
+  #define PCLK_GPIO_NUM     22
+
+  #define BUTTON_PIN        0
+  #define STATUS_LED_PIN    33
+  #define LED_ACTIVE_LOW    true
+
+#else
+  #error "Camera model not selected! Please uncomment ONE camera model above."
+#endif
+
+// ==============================================================================
+// 3. IMAGE SETTINGS
+// ==============================================================================
+// FRAMESIZE_XGA (1024x768) provides high quality for scene description & OCR.
+// Other options: FRAMESIZE_SVGA (800x600), FRAMESIZE_VGA (640x480)
+#define FRAME_SIZE         FRAMESIZE_XGA
+#define JPEG_QUALITY       12   // 10..20 (lower number = higher quality, larger file)
+
+// ==============================================================================
+// 4. CORE ENGINE & SERVER
+// ==============================================================================
 WebServer server(80);
 uint32_t lastWifiCheckMs = 0;
 
 void setLed(bool on) {
-#if STATUS_LED_PIN >= 0
-  // XIAO LED is active LOW
-  digitalWrite(STATUS_LED_PIN, on ? LOW : HIGH);
+#if defined(STATUS_LED_PIN) && (STATUS_LED_PIN >= 0)
+  if (LED_ACTIVE_LOW) {
+    digitalWrite(STATUS_LED_PIN, on ? LOW : HIGH);
+  } else {
+    digitalWrite(STATUS_LED_PIN, on ? HIGH : LOW);
+  }
 #endif
 }
 
 bool initCamera() {
   if (!psramFound()) {
-    Serial.println("[cam] PSRAM not found. Fix Tools > PSRAM (OPI for ...R8 modules).");
-    return false;
+    Serial.println("[cam] Warning: PSRAM not found. Check Tools > PSRAM (OPI PSRAM).");
   }
 
   camera_config_t c = {};
@@ -91,34 +192,46 @@ bool initCamera() {
   c.pixel_format = PIXFORMAT_JPEG;
   c.frame_size   = FRAME_SIZE;
   c.jpeg_quality = JPEG_QUALITY;
-  c.fb_count     = 2;
-  c.fb_location  = CAMERA_FB_IN_PSRAM;
-  c.grab_mode    = CAMERA_GRAB_LATEST;   // always hand out the newest frame
+
+  if (psramFound()) {
+    c.fb_count     = 2;
+    c.fb_location  = CAMERA_FB_IN_PSRAM;
+    c.grab_mode    = CAMERA_GRAB_LATEST;   // always grab the newest frame
+  } else {
+    c.frame_size   = FRAMESIZE_VGA;
+    c.fb_count     = 1;
+    c.fb_location  = CAMERA_FB_IN_DRAM;
+    c.grab_mode    = CAMERA_GRAB_WHEN_EMPTY;
+  }
 
   esp_err_t err = esp_camera_init(&c);
   if (err != ESP_OK) {
-    Serial.printf("[cam] init failed: 0x%x (check model define, ribbon cable, PSRAM)\n", err);
+    Serial.printf("[cam] Init failed with error 0x%x\n", err);
     return false;
   }
 
   sensor_t *s = esp_camera_sensor_get();
-  Serial.printf("[cam] sensor PID 0x%04X (OV3660 = 0x3660)\n", s->id.PID);
-  if (s->id.PID == OV3660_PID) {
-    // Correction for OV3660 sensor
-    s->set_vflip(s, 1);
-    s->set_brightness(s, 1);
-    s->set_saturation(s, -2);
+  if (s != NULL) {
+    Serial.printf("[cam] Sensor PID 0x%04X\n", s->id.PID);
+    if (s->id.PID == OV3660_PID) {
+      // OV3660 sensor optimization
+      s->set_vflip(s, 1);
+      s->set_brightness(s, 1);
+      s->set_saturation(s, -2);
+    }
   }
+
+  Serial.println("[cam] Camera initialized successfully.");
   return true;
 }
 
 void connectWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(HOSTNAME);
-  WiFi.setSleep(false);              // lower latency; costs some battery
-  WiFi.begin(WIFI_SSID, WIFI_PASS);  // ESP32-S3 is 2.4 GHz only
+  WiFi.setSleep(false);              // low latency
+  WiFi.begin(WIFI_SSID, WIFI_PASS);  // 2.4 GHz Wi-Fi
 
-  Serial.printf("[wifi] connecting to '%s'", WIFI_SSID);
+  Serial.printf("[wifi] Connecting to '%s'", WIFI_SSID);
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) {
     delay(500);
@@ -127,19 +240,20 @@ void connectWiFi() {
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("[wifi] connected! IP: %s, RSSI: %d dBm\n",
+    Serial.printf("[wifi] Connected! IP: %s, RSSI: %d dBm\n",
                   WiFi.localIP().toString().c_str(), WiFi.RSSI());
     if (MDNS.begin(HOSTNAME)) {
       MDNS.addService("http", "tcp", 80);
-      Serial.println("[mdns] responder started at http://sparsh-glasses.local");
+      Serial.println("[mdns] Responder started at http://sparsh-glasses.local");
     }
   } else {
-    Serial.println("[wifi] connection failed or timed out - will keep retrying in loop");
+    Serial.println("[wifi] Could not connect yet - will keep retrying in loop.");
   }
 }
 
-// Every endpoint requires the shared device token.
+// Every endpoint verifies the device token
 bool authorized() {
+  if (strlen(DEVICE_TOKEN) == 0) return true;
   if (!server.hasHeader("X-Device-Token") ||
       server.header("X-Device-Token") != DEVICE_TOKEN) {
     server.send(401, "application/json", "{\"ok\":false,\"error\":\"unauthorized\"}");
@@ -167,7 +281,7 @@ void handleStatus() {
 void handleCapture() {
   if (!authorized()) return;
 
-  setLed(true);  // visible "camera in use" indicator (privacy)
+  setLed(true);  // camera in use indicator
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     setLed(false);
@@ -188,19 +302,19 @@ void handleNotFound() {
   server.send(404, "application/json", "{\"ok\":false,\"error\":\"not_found\"}");
 }
 
-// Button press: capture and push the frame to the backend (no browser involved).
+// Physical button press: captures and pushes frame directly to the backend
 void pushFrameToBackend(const char *trigger) {
   if (strlen(BACKEND_FRAME_URL) == 0 || WiFi.status() != WL_CONNECTED) {
-    Serial.println("[btn] backend URL not set or Wi-Fi down");
+    Serial.println("[btn] BACKEND_FRAME_URL not configured or Wi-Fi offline");
     return;
   }
 
-  Serial.println("[btn] capturing frame for SPARSH assistant...");
+  Serial.println("\n[btn] Button pressed! Capturing frame for SPARSH Assistant...");
   setLed(true);
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     setLed(false);
-    Serial.println("[btn] capture failed");
+    Serial.println("[btn] Camera capture failed!");
     return;
   }
 
@@ -210,6 +324,7 @@ void pushFrameToBackend(const char *trigger) {
   http.addHeader("Content-Type", "image/jpeg");
   http.addHeader("X-Device-Token", DEVICE_TOKEN);
   http.addHeader("X-Trigger", trigger);
+
   int code = http.POST(fb->buf, fb->len);
   http.end();
 
@@ -219,7 +334,7 @@ void pushFrameToBackend(const char *trigger) {
 }
 
 void handleButton() {
-#if BUTTON_PIN >= 0
+#if defined(BUTTON_PIN) && (BUTTON_PIN >= 0)
   static int stableState = HIGH;
   static int lastReading = HIGH;
   static uint32_t lastChangeMs = 0;
@@ -231,37 +346,43 @@ void handleButton() {
   }
   if (millis() - lastChangeMs > 40 && reading != stableState) {  // 40 ms debounce
     stableState = reading;
-    if (stableState == LOW) pushFrameToBackend("button");         // pressed
+    if (stableState == LOW) {
+      pushFrameToBackend("button"); // Button pressed (active low)
+    }
   }
 #endif
 }
 
+// ==============================================================================
+// 5. SETUP & MAIN LOOP
+// ==============================================================================
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n=================================================");
-  Serial.println("  SPARSH VoiceVision — Glasses Camera Node Boot  ");
-  Serial.println("=================================================");
 
-#if STATUS_LED_PIN >= 0
+  Serial.println("\n=======================================================");
+  Serial.println("   SPARSH VoiceVision — Smart Glasses Camera Firmware   ");
+  Serial.println("=======================================================");
+
+#if defined(STATUS_LED_PIN) && (STATUS_LED_PIN >= 0)
   pinMode(STATUS_LED_PIN, OUTPUT);
   setLed(false);
 #endif
-#if BUTTON_PIN >= 0
+
+#if defined(BUTTON_PIN) && (BUTTON_PIN >= 0)
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 #endif
 
-  if (String(DEVICE_TOKEN) == "CHANGE_ME" || strlen(DEVICE_TOKEN) < 8) {
-    Serial.println("[warn] set a long random DEVICE_TOKEN in secrets.h");
-  }
-
+  // Initialize camera sensor
   if (!initCamera()) {
-    Serial.println("[cam] halted - fix the camera setup and reset the board");
+    Serial.println("[cam] Fatal: Camera setup failed. Please check board and camera ribbon.");
     while (true) delay(1000);
   }
 
+  // Connect to Wi-Fi
   connectWiFi();
 
+  // Register HTTP routes
   const char *headerKeys[] = {"X-Device-Token"};
   server.collectHeaders(headerKeys, 1);
   server.on("/status", HTTP_GET, handleStatus);
@@ -269,25 +390,30 @@ void setup() {
   server.onNotFound(handleNotFound);
   server.begin();
 
-  Serial.println("\n[ok] SPARSH Smart Glasses Ready!");
-  Serial.printf("  LAN URL: http://%s\n", WiFi.localIP().toString().c_str());
-  Serial.printf("  mDNS:    http://%s.local\n", HOSTNAME);
-  Serial.printf("  Token:   %s\n", DEVICE_TOKEN);
-  Serial.println("-------------------------------------------------");
-  Serial.println("Set the backend env vars:");
+  Serial.println("\n[SPARSH Ready] Web server listening on port 80.");
+  Serial.println("-------------------------------------------------------");
+  Serial.printf("  Glasses IP:   http://%s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("  mDNS URL:     http://%s.local\n", HOSTNAME);
+  Serial.printf("  Device Token: %s\n", DEVICE_TOKEN);
+  Serial.println("-------------------------------------------------------");
+  Serial.println("Set the backend environment variables:");
   Serial.printf("  GLASSES_URL=http://%s\n", WiFi.localIP().toString().c_str());
   Serial.printf("  GLASSES_DEVICE_TOKEN=%s\n", DEVICE_TOKEN);
-  Serial.println("=================================================\n");
+  Serial.println("=======================================================\n");
 }
 
 void loop() {
+  // Handle LAN requests from FastAPI backend (/capture and /status)
   server.handleClient();
+
+  // Handle tactile button press
   handleButton();
 
+  // Keep Wi-Fi connected
   if (millis() - lastWifiCheckMs > 10000) {
     lastWifiCheckMs = millis();
     if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("[wifi] lost - reconnecting");
+      Serial.println("[wifi] Reconnecting...");
       WiFi.reconnect();
     }
   }
