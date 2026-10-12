@@ -110,13 +110,13 @@ export default function SuperAdminConfig() {
             />
           </div>
           <div>
-            <label className="text-white/80 text-sm mb-1 block">Agora App ID (Live Classes)</label>
+            <label className="text-white/80 text-sm mb-1 block">Daily.co API Key (Live Classes Engine)</label>
             <input 
-              type="text" 
-              value={config.agora_app_id || ''} 
-              onChange={e => setConfig({ ...config, agora_app_id: e.target.value })}
+              type="password" 
+              value={config.daily_api_key || config.agora_app_id || ''} 
+              onChange={e => setConfig({ ...config, daily_api_key: e.target.value })}
               className="glass-input w-full font-mono text-sm"
-              placeholder="Enter Agora App ID"
+              placeholder="Enter Daily.co REST API Key"
             />
           </div>
         </div>

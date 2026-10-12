@@ -2,84 +2,92 @@
 import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 
-// ── Ultra-Realistic Humanized Avatar Materials ──
+// ── Ultra-Realistic Humanized Avatar Materials (Cached Globally to Prevent WebGL Leak) ──
+let cachedMaterials: any = null;
+
+function createAvatarMaterials() {
+  const skin = (color: string, roughness = 0.42) =>
+    new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(color),
+      roughness: roughness,
+      metalness: 0.02,
+      clearcoat: 0.22,
+      clearcoatRoughness: 0.28,
+      reflectivity: 0.55,
+      sheen: 0.35,
+      sheenRoughness: 0.4,
+      sheenColor: new THREE.Color('#FFB594'), // Warm subsurface tint
+      envMapIntensity: 1.25,
+    });
+
+  const cloth = (color: string, roughness = 0.82) =>
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      roughness: roughness,
+      metalness: 0.05,
+      envMapIntensity: 0.75,
+    });
+
+  return {
+    // Skin tones (Realistic warm human complexion)
+    skin: skin('#D49A7A', 0.42),
+    skinDark: skin('#BA7E62', 0.45),
+    skinLt: skin('#E2A789', 0.38),
+    skinShadow: skin('#A26B52', 0.48),
+
+    // Clothing - Professional & Modern Studio Wear
+    shirt: cloth('#254E7A', 0.82),          // Deep navy executive polo shirt
+    shirtCollar: cloth('#1A3959', 0.78),
+    shirtTrim: cloth('#3669A0', 0.75),
+    shirtButton: new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.2, metalness: 0.8 }),
+    pants: cloth('#1E293B', 0.88),          // Slate dark charcoal trousers
+    pantsSeam: cloth('#0F172A', 0.92),
+    belt: cloth('#18181B', 0.35),
+    beltBuckle: new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.15, metalness: 0.92 }),
+    shoe: cloth('#0F172A', 0.6),            // Premium leather sneakers
+    shoeSole: cloth('#F8FAFC', 0.45),
+    shoeAccent: cloth('#254E7A', 0.65),
+    shoeLace: cloth('#FFFFFF', 0.4),
+
+    // Anatomical Facial Features
+    hair: new THREE.MeshStandardMaterial({ color: '#1C130E', roughness: 0.5, metalness: 0.12 }),
+    hairHighlight: new THREE.MeshStandardMaterial({ color: '#2D1F17', roughness: 0.45, metalness: 0.18 }),
+    sclera: new THREE.MeshStandardMaterial({ color: '#FAF8F5', roughness: 0.12, metalness: 0.02 }), // Eye white
+    iris: new THREE.MeshStandardMaterial({ color: '#3B2314', roughness: 0.08, metalness: 0.25 }),    // Deep hazel brown iris
+    irisRing: new THREE.MeshStandardMaterial({ color: '#1B0F07', roughness: 0.1, metalness: 0.35 }),
+    pupil: new THREE.MeshStandardMaterial({ color: '#090503', roughness: 0.02 }),
+    cornea: new THREE.MeshPhysicalMaterial({                                // Glassy specular cornea outer dome
+      color: '#FFFFFF',
+      transmission: 0.94,
+      opacity: 1,
+      transparent: true,
+      roughness: 0.01,
+      ior: 1.38,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.02,
+    }),
+    lipUpper: skin('#A65B50', 0.36),
+    lipLower: skin('#BA685A', 0.32),
+    teeth: new THREE.MeshStandardMaterial({ color: '#FAF9F5', roughness: 0.18, metalness: 0.05 }),
+    tongue: new THREE.MeshStandardMaterial({ color: '#B24552', roughness: 0.38, metalness: 0.01 }),
+    oralCavity: new THREE.MeshStandardMaterial({ color: '#26060A', roughness: 0.85 }),
+    brow: new THREE.MeshStandardMaterial({ color: '#120C09', roughness: 0.75 }),
+    eyelash: new THREE.MeshStandardMaterial({ color: '#0A0604', roughness: 0.8 }),
+    nail: skin('#E2B29F', 0.22),
+
+    // Watch & Metallic Accessories
+    watchStrap: cloth('#18181B', 0.35),
+    watchCase: new THREE.MeshStandardMaterial({ color: '#CBD5E1', roughness: 0.15, metalness: 0.9 }),
+    watchFace: new THREE.MeshStandardMaterial({ color: '#020617', roughness: 0.08, metalness: 0.85 }),
+  };
+}
+
 export function useAvatarMaterials() {
   return useMemo(() => {
-    // Hyper-realistic human skin with subsurface scattering warmth and subtle gloss
-    const skin = (color: string, roughness = 0.42) =>
-      new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(color),
-        roughness: roughness,
-        metalness: 0.02,
-        clearcoat: 0.22,
-        clearcoatRoughness: 0.28,
-        reflectivity: 0.55,
-        sheen: 0.35,
-        sheenRoughness: 0.4,
-        sheenColor: new THREE.Color('#FFB594'), // Warm subsurface tint
-        envMapIntensity: 1.25,
-      });
-
-    const cloth = (color: string, roughness = 0.82) =>
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(color),
-        roughness: roughness,
-        metalness: 0.05,
-        envMapIntensity: 0.75,
-      });
-
-    return {
-      // Skin tones (Realistic warm human complexion)
-      skin: skin('#D49A7A', 0.42),
-      skinDark: skin('#BA7E62', 0.45),
-      skinLt: skin('#E2A789', 0.38),
-      skinShadow: skin('#A26B52', 0.48),
-
-      // Clothing - Professional & Modern Studio Wear
-      shirt: cloth('#254E7A', 0.82),          // Deep navy executive polo shirt
-      shirtCollar: cloth('#1A3959', 0.78),
-      shirtTrim: cloth('#3669A0', 0.75),
-      shirtButton: new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.2, metalness: 0.8 }),
-      pants: cloth('#1E293B', 0.88),          // Slate dark charcoal trousers
-      pantsSeam: cloth('#0F172A', 0.92),
-      belt: cloth('#18181B', 0.35),
-      beltBuckle: new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.15, metalness: 0.92 }),
-      shoe: cloth('#0F172A', 0.6),            // Premium leather sneakers
-      shoeSole: cloth('#F8FAFC', 0.45),
-      shoeAccent: cloth('#254E7A', 0.65),
-      shoeLace: cloth('#FFFFFF', 0.4),
-
-      // Anatomical Facial Features
-      hair: new THREE.MeshStandardMaterial({ color: '#1C130E', roughness: 0.5, metalness: 0.12 }),
-      hairHighlight: new THREE.MeshStandardMaterial({ color: '#2D1F17', roughness: 0.45, metalness: 0.18 }),
-      sclera: new THREE.MeshStandardMaterial({ color: '#FAF8F5', roughness: 0.12, metalness: 0.02 }), // Eye white
-      iris: new THREE.MeshStandardMaterial({ color: '#3B2314', roughness: 0.08, metalness: 0.25 }),    // Deep hazel brown iris
-      irisRing: new THREE.MeshStandardMaterial({ color: '#1B0F07', roughness: 0.1, metalness: 0.35 }),
-      pupil: new THREE.MeshStandardMaterial({ color: '#090503', roughness: 0.02 }),
-      cornea: new THREE.MeshPhysicalMaterial({                                // Glassy specular cornea outer dome
-        color: '#FFFFFF',
-        transmission: 0.94,
-        opacity: 1,
-        transparent: true,
-        roughness: 0.01,
-        ior: 1.38,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.02,
-      }),
-      lipUpper: skin('#A65B50', 0.36),
-      lipLower: skin('#BA685A', 0.32),
-      teeth: new THREE.MeshStandardMaterial({ color: '#FAF9F5', roughness: 0.18, metalness: 0.05 }),
-      tongue: new THREE.MeshStandardMaterial({ color: '#B24552', roughness: 0.38, metalness: 0.01 }),
-      oralCavity: new THREE.MeshStandardMaterial({ color: '#26060A', roughness: 0.85 }),
-      brow: new THREE.MeshStandardMaterial({ color: '#120C09', roughness: 0.75 }),
-      eyelash: new THREE.MeshStandardMaterial({ color: '#0A0604', roughness: 0.8 }),
-      nail: skin('#E2B29F', 0.22),
-
-      // Watch & Metallic Accessories
-      watchStrap: cloth('#18181B', 0.35),
-      watchCase: new THREE.MeshStandardMaterial({ color: '#CBD5E1', roughness: 0.15, metalness: 0.9 }),
-      watchFace: new THREE.MeshStandardMaterial({ color: '#020617', roughness: 0.08, metalness: 0.85 }),
-    };
+    if (!cachedMaterials) {
+      cachedMaterials = createAvatarMaterials();
+    }
+    return cachedMaterials;
   }, []);
 }
 

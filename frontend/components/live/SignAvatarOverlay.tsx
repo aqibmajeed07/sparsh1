@@ -479,6 +479,8 @@ export default function SignAvatarOverlay({
   isProcessing,
   isSpeaking,
 }: SignAvatarOverlayProps) {
+  const [canvasKey, setCanvasKey] = useState(0);
+
   return (
     <div
       className={`relative flex flex-col bg-gradient-to-b from-[#0B0F19] via-[#090C15] to-[#04060C] border border-white/10 rounded-2xl overflow-hidden shadow-2xl ${className ?? ''
@@ -526,25 +528,34 @@ export default function SignAvatarOverlay({
         </div>
       )}
 
-      {/* 3D Canvas */}
+      {/* 3D Canvas with Auto-Recovery & Memory Optimization */}
       <div className="flex-1 w-full h-full min-h-[350px]">
         <Canvas
+          key={canvasKey}
           shadows
+          dpr={[1, 1.5]}
           camera={{ position: [0, 0.45, 2.35], fov: 37, near: 0.05, far: 20 }}
           gl={{
             antialias: true,
-            powerPreference: 'default',
+            powerPreference: 'high-performance',
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.35,
           }}
           onCreated={({ gl }) => {
-            gl.domElement.addEventListener('webglcontextlost', (event) => {
+            const handleContextLost = (event: Event) => {
               event.preventDefault();
-              console.warn('[Avatar 3D] WebGL Context lost. Auto-recovering...');
-            }, false);
-            gl.domElement.addEventListener('webglcontextrestored', () => {
+              console.warn('[Avatar 3D] WebGL Context lost. Auto-recovering fresh canvas…');
+              setTimeout(() => {
+                setCanvasKey(k => k + 1);
+              }, 300);
+            };
+            const handleContextRestored = () => {
               console.log('[Avatar 3D] WebGL Context restored.');
-            }, false);
+            };
+
+            const dom = gl.domElement;
+            dom.addEventListener('webglcontextlost', handleContextLost, false);
+            dom.addEventListener('webglcontextrestored', handleContextRestored, false);
           }}
         >
           <CameraTarget />
@@ -555,7 +566,7 @@ export default function SignAvatarOverlay({
             position={[1.8, 4.2, 2.6]}
             intensity={2.8}
             castShadow
-            shadow-mapSize={[1024, 1024]}
+            shadow-mapSize={[512, 512]}
             shadow-camera-near={0.1}
             shadow-camera-far={8}
             shadow-camera-left={-1.5}
@@ -579,6 +590,7 @@ export default function SignAvatarOverlay({
             opacity={0.6}
             scale={3.2}
             blur={2.2}
+            resolution={512}
             color="#1E1B4B"
           />
         </Canvas>

@@ -28,6 +28,20 @@ const SignAvatarOverlay = dynamic(
   }
 );
 
+// Dynamically import Daily.co Real-Time Multi-Party Video
+const DailyCall = dynamic(
+  () => import('@/components/live/DailyCall'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-[#070913] text-white gap-3 rounded-2xl">
+        <div className="w-10 h-10 border-2 border-[#6C63FF] border-t-transparent rounded-full animate-spin" />
+        <p className="text-white/60 text-xs font-medium">Connecting to Live Video Grid…</p>
+      </div>
+    ),
+  }
+);
+
 interface LiveSession {
   id: string;
   rtc_channel_id: string;
@@ -118,6 +132,7 @@ export default function StudentLiveClassPage() {
 
   // ── Session & Navigation State ──
   const [activeChannel, setActiveChannel] = useState<string>(initialChannel);
+  const [dailyRoomUrl, setDailyRoomUrl] = useState<string>('');
   const [activeSession, setActiveSession] = useState<LiveSession | null>(null);
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
@@ -249,6 +264,7 @@ export default function StudentLiveClassPage() {
     const cleanChan = sanitizeChannelId(rawChannel);
     if (!cleanChan) {
       setActiveChannel('');
+      setDailyRoomUrl('');
       setActiveSession(null);
       return;
     }
@@ -256,6 +272,17 @@ export default function StudentLiveClassPage() {
     setActiveChannel(cleanChan);
 
     async function loadRoomDetails() {
+      // Resolve Daily.co Room URL
+      fetch(`/api/live?room=${encodeURIComponent(cleanChan)}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d?.url) setDailyRoomUrl(d.url);
+          else setDailyRoomUrl(`https://edsign.daily.co/${cleanChan}`);
+        })
+        .catch(() => {
+          setDailyRoomUrl(`https://edsign.daily.co/${cleanChan}`);
+        });
+
       try {
         // Fetch session info from real backend
         const res = await fetch(`/api/live-classes/${cleanChan}`, { cache: 'no-store' });
@@ -263,6 +290,7 @@ export default function StudentLiveClassPage() {
           const data = await res.json();
           if (data.session) {
             setActiveSession(data.session);
+            if (data.session.recording_url) setDailyRoomUrl(data.session.recording_url);
             return;
           }
         }
@@ -276,6 +304,7 @@ export default function StudentLiveClassPage() {
 
         if (dbSess) {
           setActiveSession(dbSess);
+          if (dbSess.recording_url) setDailyRoomUrl(dbSess.recording_url);
         } else {
           // Clean title formatted from channel name
           const cleanTitle = cleanChan.replace(/^sparsh-/, '').replace(/-/g, ' ').toUpperCase();
@@ -1001,144 +1030,59 @@ export default function StudentLiveClassPage() {
             ))}
           </div>
 
-          {/* Video Grid */}
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3 relative rounded-2xl overflow-hidden min-h-0">
-            {/* Main Stage: Teacher Feed or Screen Share */}
-            <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-[#0c0f1d] border border-white/10 flex items-center justify-center shadow-inner group">
-              {isScreenSharing ? (
-                <div className="w-full h-full relative bg-black flex items-center justify-center">
-                  <video
-                    ref={screenVideoRef}
-                    autoPlay
-                    playsInline
-                    className="w-full h-full object-contain"
-                  />
-                  <div className="absolute top-3 left-3 px-3 py-1 bg-black/70 backdrop-blur rounded-lg text-xs font-semibold text-white flex items-center gap-2">
-                    <ScreenShare className="w-3.5 h-3.5 text-[#00C9A7]" />
-                    <span>Screen Share Active</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="w-full h-full relative flex items-center justify-center bg-gradient-to-br from-[#12162e] via-[#0a0d1b] to-[#04060c]">
-                  <div className="flex flex-col items-center gap-4 text-center p-6">
-                    <div className="relative">
-                      <div className={`w-28 h-28 md:w-36 md:h-36 rounded-full bg-gradient-to-tr from-[#6C63FF] to-[#00C9A7] p-1 shadow-2xl transition-all duration-300 ${
-                        isSpeakingTts ? 'ring-8 ring-[#00C9A7]/40 scale-105' : ''
-                      }`}>
-                        <div className="w-full h-full rounded-full bg-[#1e1e32] flex items-center justify-center text-5xl md:text-6xl overflow-hidden">
-                          👩‍🏫
-                        </div>
-                      </div>
-                      {isSpeakingTts && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-[#00C9A7] text-black text-[10px] font-black uppercase tracking-wider animate-pulse shadow-md">
-                          Speaking 🎙️
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="text-white font-bold text-lg md:text-xl">
-                        {displayTeacher}
-                      </h3>
-                      <p className="text-white/50 text-xs mt-0.5">Faculty • {displaySubject}</p>
-                    </div>
-                  </div>
+          {/* Main Stage: Daily.co Real-Time Multi-Party Video Grid */}
+          <div className="flex-1 relative rounded-2xl overflow-hidden min-h-0 bg-[#070913] border border-white/10 shadow-2xl">
+            {dailyRoomUrl ? (
+              <DailyCall
+                roomUrl={dailyRoomUrl}
+                captionsEnabled={showSubtitles}
+                islEnabled={avatarSize !== 'hidden'}
+                userName={userProfile?.full_name ? `${userProfile.full_name} (Student)` : 'Student'}
+                onLeave={() => {
+                  setActiveChannel('');
+                  router.push('/student/live-class');
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-[#070913] text-white gap-3">
+                <span className="w-10 h-10 border-2 border-[#6C63FF] border-t-transparent rounded-full animate-spin" />
+                <p className="text-white/60 text-xs font-medium">Connecting to Daily.co Live Classroom…</p>
+              </div>
+            )}
 
-                  <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-xl text-xs text-white flex items-center gap-2 border border-white/10">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="font-semibold">{displayTeacher}</span>
-                    <span className="text-white/40">| Host</span>
-                  </div>
-                </div>
-              )}
-
-              {/* In-Video 3D ISL Avatar (PIP Mode) */}
-              {avatarSize !== 'hidden' && (
-                <div
-                  className={`absolute z-30 transition-all duration-300 ${
-                    avatarSize === 'large'
-                      ? 'inset-y-3 right-3 w-72 md:w-84'
-                      : 'bottom-4 right-4 w-52 md:w-64 h-72 md:h-84'
-                  }`}
-                >
-                  <div className="w-full h-full rounded-2xl overflow-hidden border border-[#6C63FF]/50 bg-[#070913]/90 shadow-[0_0_30px_rgba(108,99,255,0.3)] backdrop-blur-md flex flex-col">
-                    <div className="px-3 py-1.5 bg-black/60 border-b border-white/10 flex items-center justify-between text-[11px] text-white shrink-0">
-                      <div className="flex items-center gap-1.5 font-bold text-[#6C63FF]">
-                        <span>🤟</span>
-                        <span>3D ISL Interpreter</span>
-                      </div>
-                      <button
-                        onClick={() => setAvatarSize(s => s === 'normal' ? 'large' : 'normal')}
-                        className="hover:text-[#00C9A7] transition"
-                      >
-                        {avatarSize === 'large' ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-                      </button>
+            {/* In-Video 3D ISL Avatar (PIP Mode) */}
+            {avatarSize !== 'hidden' && (
+              <div
+                className={`absolute z-30 transition-all duration-300 pointer-events-auto ${
+                  avatarSize === 'large'
+                    ? 'bottom-4 right-4 w-72 md:w-84 h-80 md:h-96'
+                    : 'bottom-4 right-4 w-52 md:w-64 h-64 md:h-80'
+                }`}
+              >
+                <div className="w-full h-full rounded-2xl overflow-hidden border border-[#6C63FF]/50 bg-[#070913]/90 shadow-[0_0_30px_rgba(108,99,255,0.3)] backdrop-blur-md flex flex-col">
+                  <div className="px-3 py-1.5 bg-black/60 border-b border-white/10 flex items-center justify-between text-[11px] text-white shrink-0">
+                    <div className="flex items-center gap-1.5 font-bold text-[#6C63FF]">
+                      <span>🤟</span>
+                      <span>3D ISL Interpreter</span>
                     </div>
-                    <div className="flex-1 relative">
-                      <SignAvatarOverlay
-                        queue={avatarQueue}
-                        onSignComplete={handleSignComplete}
-                        isProcessing={isProcessingCaption}
-                        className="w-full h-full"
-                      />
-                    </div>
+                    <button
+                      onClick={() => setAvatarSize(s => s === 'normal' ? 'large' : 'normal')}
+                      className="hover:text-[#00C9A7] transition"
+                    >
+                      {avatarSize === 'large' ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+                    </button>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Right Column: Student Self View & Connected Peers */}
-            <div className="md:col-span-1 flex flex-col gap-3 min-h-0">
-              <div className="flex-1 relative rounded-2xl overflow-hidden bg-[#0c0f1d] border border-white/10 flex items-center justify-center min-h-[160px]">
-                {camOff ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                      {userProfile?.full_name ? userProfile.full_name.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                    <span className="text-white/40 text-xs">Camera Off</span>
+                  <div className="flex-1 relative">
+                    <SignAvatarOverlay
+                      queue={avatarQueue}
+                      onSignComplete={handleSignComplete}
+                      isProcessing={isProcessingCaption}
+                      className="w-full h-full"
+                    />
                   </div>
-                ) : (
-                  <video
-                    ref={localVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover scale-x-[-1]"
-                  />
-                )}
-
-                <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 bg-black/70 backdrop-blur rounded-lg text-[11px] text-white flex items-center gap-1.5">
-                  <span className="font-semibold">{userProfile?.full_name ? `${userProfile.full_name} (You)` : 'You (Student)'}</span>
-                  {micMuted ? <span className="text-red-400">🔇</span> : <span className="text-emerald-400">🎙️</span>}
-                  {handRaised && <span className="text-xs">✋</span>}
                 </div>
               </div>
-
-              {/* Real Connected Participants / Peers */}
-              <div className="h-28 rounded-2xl bg-[#0c0f1d]/70 border border-white/5 p-2 flex gap-2 overflow-x-auto shrink-0 items-center">
-                {participants.length <= 1 ? (
-                  <div className="w-full text-center text-white/30 text-xs py-2">
-                    Waiting for peers to join...
-                  </div>
-                ) : (
-                  participants
-                    .filter(p => !p.name.includes('(You)'))
-                    .map(peer => (
-                      <div
-                        key={peer.id}
-                        className="w-24 h-full rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center p-1.5 shrink-0 relative"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                          {peer.name.charAt(0)}
-                        </div>
-                        <span className="text-white text-[10px] font-medium truncate w-full text-center mt-1">
-                          {peer.name.split(' ')[0]}
-                        </span>
-                        <span className="text-white/30 text-[9px]">{peer.has_audio ? '🎙️' : '🔇'}</span>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* ── Real-Time Subtitles & Captions Bar ── */}
