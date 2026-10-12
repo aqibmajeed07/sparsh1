@@ -15,6 +15,14 @@ const nextConfig = {
       { protocol: 'https', hostname: '**' },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/login/auth/callback',
+        destination: '/auth/callback',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
