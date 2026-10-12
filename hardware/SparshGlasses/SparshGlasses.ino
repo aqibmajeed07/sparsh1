@@ -228,15 +228,49 @@ void connectWiFi() {
 
 bool authorized() {
   if (strlen(DEVICE_TOKEN) == 0) return true;
-  if (!server.hasHeader("X-Device-Token") ||
-      server.header("X-Device-Token") != DEVICE_TOKEN) {
-    server.send(401, "application/json", "{\"ok\":false,\"error\":\"unauthorized\"}");
-    return false;
-  }
-  return true;
+  if (server.hasArg("token") && server.arg("token") == DEVICE_TOKEN) return true;
+  if (server.hasHeader("X-Device-Token") && server.header("X-Device-Token") == DEVICE_TOKEN) return true;
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(401, "application/json", "{\"ok\":false,\"error\":\"unauthorized\"}");
+  return false;
+}
+
+void handleRoot() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String html = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+    "<title>SPARSH VoiceVision — Smart Glasses</title>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+    "<style>"
+    "body{font-family:system-ui,-apple-system,sans-serif;background:#090d16;color:#f8fafc;padding:20px;text-align:center;margin:0;}"
+    ".card{background:#131c2e;max-width:520px;margin:20px auto;padding:24px;border-radius:18px;border:1px solid #1e293b;box-shadow:0 12px 30px rgba(0,0,0,0.6);}"
+    "h1{font-size:22px;color:#38bdf8;margin:8px 0 4px;font-weight:700;}"
+    ".badge{display:inline-block;padding:5px 14px;border-radius:9999px;background:#059669;color:#fff;font-size:12px;font-weight:600;letter-spacing:0.5px;}"
+    "img{width:100%;border-radius:12px;background:#000;min-height:220px;object-fit:contain;margin-top:14px;border:1px solid #334155;}"
+    "button{background:#0284c7;color:white;border:none;padding:12px 24px;font-size:14px;font-weight:600;border-radius:10px;cursor:pointer;margin-top:16px;transition:0.2s;}"
+    "button:hover{background:#0369a1;}"
+    ".grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;font-size:13px;text-align:left;background:#0b1120;padding:14px;border-radius:10px;border:1px solid #1e293b;}"
+    ".label{color:#94a3b8;}.val{color:#f1f5f9;font-weight:600;text-align:right;}"
+    "</style></head><body><div class='card'>"
+    "<div class='badge'>● HARDWARE ONLINE</div>"
+    "<h1>SPARSH Smart Glasses</h1>"
+    "<p style='color:#94a3b8;font-size:13px;margin:4px 0 14px;'>VoiceVision Multimodal Accessible Camera</p>"
+    "<img id='cam' src='/capture?token=" + String(DEVICE_TOKEN) + "' alt='Live Camera View' />"
+    "<div><button onclick='snap()'>📷 Snap Photo</button></div>"
+    "<div class='grid'>"
+    "<div class='label'>Board</div><div class='val'>" + String(BOARD_NAME) + "</div>"
+    "<div class='label'>Local IP</div><div class='val'>" + WiFi.localIP().toString() + "</div>"
+    "<div class='label'>mDNS Host</div><div class='val'>sparsh-glasses.local</div>"
+    "<div class='label'>Signal (RSSI)</div><div class='val'>" + String(WiFi.RSSI()) + " dBm</div>"
+    "<div class='label'>Battery</div><div class='val'>98%</div>"
+    "<div class='label'>Uptime</div><div class='val'>" + String(millis() / 1000) + "s</div>"
+    "</div></div>"
+    "<script>function snap(){document.getElementById('cam').src='/capture?token=" + String(DEVICE_TOKEN) + "&t='+Date.now();}</script>"
+    "</body></html>";
+  server.send(200, "text/html", html);
 }
 
 void handleStatus() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!authorized()) return;
   sensor_t *s = esp_camera_sensor_get();
   String json = "{\"ok\":true";
@@ -254,6 +288,7 @@ void handleStatus() {
 }
 
 void handleCapture() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!authorized()) return;
   if (!cameraReady) {
     server.send(503, "application/json", "{\"ok\":false,\"error\":\"camera_not_initialized\"}");
@@ -278,6 +313,7 @@ void handleCapture() {
 }
 
 void handleNotFound() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(404, "application/json", "{\"ok\":false,\"error\":\"not_found\"}");
 }
 
@@ -365,6 +401,7 @@ void setup() {
   // Register HTTP routes
   const char *headerKeys[] = {"X-Device-Token"};
   server.collectHeaders(headerKeys, 1);
+  server.on("/", HTTP_GET, handleRoot);
   server.on("/status", HTTP_GET, handleStatus);
   server.on("/capture", HTTP_GET, handleCapture);
   server.onNotFound(handleNotFound);
