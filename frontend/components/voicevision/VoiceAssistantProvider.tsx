@@ -257,12 +257,32 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     activation.init();
     activationManagerRef.current = activation;
 
+    // 3. Smart Glasses Physical Button Poller
+    let lastButtonId = 0;
+    const glassesButtonInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/glasses/button-result?since=${lastButtonId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data.id === 'number' && data.id > lastButtonId) {
+            lastButtonId = data.id;
+            if (data.text && data.text.trim()) {
+              speak(data.text);
+            }
+          }
+        }
+      } catch {
+        // Silently ignore if offline
+      }
+    }, 1500);
+
     return () => {
+      clearInterval(glassesButtonInterval);
       activation.destroy();
       recognizer.stop();
       ttsRef.current.stop();
     };
-  }, [executeCommand, toggleListening]);
+  }, [executeCommand, toggleListening, speak]);
 
   return (
     <VoiceAssistantContext.Provider
