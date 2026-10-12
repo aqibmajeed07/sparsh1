@@ -6,6 +6,7 @@ import { Mic, MicOff, Volume2, Sparkles, Navigation, CheckCircle2, AlertTriangle
 
 const VOICE_ROUTES: { keywords: string[]; path: string; label: string }[] = [
     { keywords: ['dashboard', 'home', 'main', 'student dashboard', 'go home'], path: '/student', label: 'Dashboard' },
+    { keywords: ['live class', 'live classroom', 'live session', 'join live class', 'teacher live', 'live lecture', 'join class'], path: '/student/live-class', label: 'Live Classroom' },
     { keywords: ['lesson', 'lessons', 'class', 'course', 'study', 'read lesson', 'chapters'], path: '/student/lessons', label: 'Lessons' },
     { keywords: ['sign lab', 'sign language', 'sign', 'gesture', 'isl', 'avatar'], path: '/student/sign-lab', label: 'Sign Lab' },
     { keywords: ['ai tutor', 'tutor', 'ask ai', 'ncert ai', 'chat ai', 'ai teacher'], path: '/student/ai-tutor', label: 'NCERT AI Tutor' },

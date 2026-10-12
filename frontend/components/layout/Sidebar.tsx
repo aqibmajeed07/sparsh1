@@ -8,6 +8,7 @@ import { senseBand, SenseBandStatus } from '@/lib/senseband';
 const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> = {
   student: [
     { label: 'Dashboard', href: '/student', icon: '🏠' },
+    { label: 'Live Class', href: '/student/live-class', icon: '🔴' },
     { label: 'Lessons', href: '/student/lessons', icon: '📚' },
     { label: 'Sign Lab', href: '/student/sign-lab', icon: '🤟' },
     { label: 'NCERT AI Library', href: '/student/ncert-library', icon: '📖' },
@@ -25,6 +26,7 @@ const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> 
   ],
   teacher: [
     { label: 'Dashboard', href: '/teacher', icon: '🏠' },
+    { label: 'Live Class Studio', href: '/teacher/live', icon: '🔴' },
     { label: 'Lesson Studio', href: '/teacher/studio', icon: '🎬' },
     { label: 'Student Progress', href: '/teacher/students', icon: '👥' },
     { label: 'Reports & Analytics', href: '/teacher/reports', icon: '📊' },

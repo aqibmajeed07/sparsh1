@@ -154,6 +154,47 @@ export default function StudentDashboard() {
         </div>
       </div>
 
+      {/* Live Class in Progress Alert Banner */}
+      {liveSession ? (
+        <div className="glass-card p-4 rounded-2xl border border-red-500/40 bg-gradient-to-r from-red-950/40 via-red-900/20 to-transparent flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-xl shrink-0 animate-pulse">
+              🔴
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                <span className="text-red-400 text-xs font-bold uppercase tracking-wider">Teacher Live Class in Progress</span>
+              </div>
+              <h3 className="text-white font-bold text-sm sm:text-base mt-0.5">{liveSession.title}</h3>
+              <p className="text-white/50 text-xs">{liveSession.subject} • Grade {liveSession.grade} • 3D ISL Avatar & Captions Active</p>
+            </div>
+          </div>
+          <Link href={`/student/live-class?channel=${encodeURIComponent(liveSession.rtc_channel_id)}`}>
+            <button className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-lg transition active:scale-95 whitespace-nowrap">
+              Join Live Class 🎥
+            </button>
+          </Link>
+        </div>
+      ) : (
+        <div className="glass-card p-4 rounded-2xl border border-white/5 bg-gradient-to-r from-[#1e1e32]/40 to-transparent flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center text-xl shrink-0">
+              📹
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-sm">Interactive Live Classroom</h3>
+              <p className="text-white/50 text-xs">Join live teacher sessions with 3D ISL Avatar, live bilingual subtitles, and Zoom controls.</p>
+            </div>
+          </div>
+          <Link href="/student/live-class">
+            <button className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white font-semibold text-xs rounded-xl border border-white/10 transition active:scale-95 whitespace-nowrap">
+              Open Live Classes →
+            </button>
+          </Link>
+        </div>
+      )}
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         {[
@@ -225,7 +266,14 @@ export default function StudentDashboard() {
       {/* Quick Actions for Hackathon MVP */}
       <div>
         <h3 className="text-white font-bold text-base sm:text-lg mb-3">Inclusive Learning Tools</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-2.5 sm:gap-3">
+          <Link href="/student/live-class" onClick={vibrate}>
+            <button className="w-full py-4 px-2 bg-gradient-to-b from-red-500 to-red-600 text-white font-bold rounded-2xl border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all text-xs shadow-sm flex flex-col items-center gap-1">
+              <span className="text-2xl animate-pulse">🔴</span>
+              <span>Live Class</span>
+            </button>
+          </Link>
+
           <Link href="/student/lessons" onClick={vibrate}>
             <button className="w-full py-4 px-2 bg-[#58cc02] text-white font-bold rounded-2xl border-b-4 border-[#58a700] active:border-b-0 active:translate-y-1 transition-all text-xs shadow-sm flex flex-col items-center gap-1">
               <span className="text-2xl">📚</span>
