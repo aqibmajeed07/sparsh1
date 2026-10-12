@@ -226,7 +226,12 @@ export class IntentParser {
     let clarificationQuestion: string | undefined;
 
     if (topMatch) {
-      if (topMatch.score < 0.6 && runnerMatch && runnerMatch.score >= 0.35 && (topMatch.score - runnerMatch.score < 0.15)) {
+      if (
+        runnerMatch &&
+        runnerMatch.score >= 0.35 &&
+        (topMatch.score - runnerMatch.score < 0.1) &&
+        topMatch.score < 0.95
+      ) {
         needsClarification = true;
         const opt1 = topMatch.matchedPhrase;
         const opt2 = runnerMatch.matchedPhrase;

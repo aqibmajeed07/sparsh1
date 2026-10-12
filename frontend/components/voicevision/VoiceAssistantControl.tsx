@@ -85,7 +85,7 @@ export function VoiceAssistantControl() {
         className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-50 flex flex-col items-start gap-2.5 max-w-[calc(100vw-2rem)] sm:max-w-md select-none"
       >
         {/* Status / Response Modal Card */}
-        {(expanded || transcript || lastResponse || errorMessage || showTypedInput) && (
+        {(expanded || state !== 'idle' || transcript || lastResponse || errorMessage || showTypedInput) && (
           <div className="glass-card w-80 sm:w-96 max-w-[calc(100vw-2rem)] p-4 rounded-2xl border-2 border-[#6C63FF]/60 bg-[#0f0c29]/95 text-white shadow-2xl backdrop-blur-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center justify-between border-b border-white/10 pb-2">
               <div className="flex items-center gap-2">
