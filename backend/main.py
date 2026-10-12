@@ -27,6 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Routers ──────────────────────────────────────────────────────────────────
+try:
+    from routers.glasses import router as glasses_router
+    app.include_router(glasses_router)
+except Exception as e:
+    print(f"[Backend] Warning loading glasses router: {e}")
+
 # ─── Supabase Client ──────────────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://jxqazpfuzxkctfntxtzi.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")

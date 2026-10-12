@@ -343,6 +343,144 @@ export class CommandRegistry {
         ctx.navigate('/login');
       },
     });
+
+    // Smart Glasses Camera: Status Check
+    this.registerGlobalCommand({
+      id: 'glasses-status',
+      phrases: ['are my glasses connected', 'check glasses', 'glasses status', 'smart glasses status', 'glasses connected'],
+      description: 'Checks connection status of SPARSH Smart Glasses',
+      scope: 'global',
+      handler: async (ctx) => {
+        ctx.speak('Checking smart glasses connection.');
+        try {
+          const res = await fetch('/api/glasses/status');
+          const data = await res.json();
+          if (data.connected) {
+            ctx.speak(`Smart glasses are connected. Battery is at ${data.battery || 100} percent.`);
+          } else if (data.configured) {
+            ctx.speak('Glasses are configured, but currently unreachable on your local Wi-Fi.');
+          } else {
+            ctx.speak('Smart glasses are not configured in environment variables.');
+          }
+        } catch {
+          ctx.speak('Glasses are not connected.');
+        }
+      },
+    });
+
+    // Smart Glasses Camera: Describe Scene
+    this.registerGlobalCommand({
+      id: 'glasses-describe',
+      phrases: ['describe what is in front of me', 'what is in front of me', 'describe scene', 'what do you see', 'look in front of me'],
+      description: 'Captures camera view from glasses and describes the scene',
+      scope: 'global',
+      handler: async (ctx) => {
+        ctx.speak('Looking through your glasses now.');
+        try {
+          const res = await fetch('/api/glasses/vision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: 'Describe what is in front of me clearly and concisely for an inclusive learner.' }),
+          });
+
+          if (res.status === 501) {
+            ctx.speak('Vision service is not configured. Multimodal VLM credentials required.');
+            return;
+          }
+          if (res.status === 503 || res.status === 502) {
+            ctx.speak('Glasses are not connected or camera capture timed out.');
+            return;
+          }
+
+          const data = await res.json();
+          if (data.description) {
+            ctx.speak(data.description);
+          } else {
+            ctx.speak('Could not identify the scene in front of you.');
+          }
+        } catch {
+          ctx.speak('Glasses are not connected.');
+        }
+      },
+    });
+
+    // Smart Glasses Camera: Read Page / Document
+    this.registerGlobalCommand({
+      id: 'glasses-read-page',
+      phrases: ['read this page', 'read the page in front of me', 'read book in front of me', 'read document', 'read paper'],
+      description: 'Reads printed or handwritten text visible in front of glasses',
+      scope: 'global',
+      handler: async (ctx) => {
+        ctx.speak('Reading page through your glasses.');
+        try {
+          const res = await fetch('/api/glasses/vision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: 'Transcribe and read all visible text printed or handwritten on this page in front of me.',
+              mode: 'ocr',
+            }),
+          });
+
+          if (res.status === 501) {
+            ctx.speak('Vision service is not configured. Multimodal VLM credentials required.');
+            return;
+          }
+          if (res.status === 503 || res.status === 502) {
+            ctx.speak('Glasses are not connected.');
+            return;
+          }
+
+          const data = await res.json();
+          if (data.description) {
+            ctx.tts.speak(data.description);
+          } else {
+            ctx.speak('No text found on the page in front of you.');
+          }
+        } catch {
+          ctx.speak('Glasses are not connected.');
+        }
+      },
+    });
+
+    // Smart Glasses Camera: Object Detection
+    this.registerGlobalCommand({
+      id: 'glasses-objects',
+      phrases: ['what objects can you see', 'detect objects', 'scan objects', 'what is on the table'],
+      description: 'Detects and lists objects in front of the glasses',
+      scope: 'global',
+      handler: async (ctx) => {
+        ctx.speak('Scanning for objects in front of you.');
+        try {
+          const res = await fetch('/api/glasses/vision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: 'List the primary objects, obstacles, and learning tools visible in front of me.',
+              mode: 'objects',
+            }),
+          });
+
+          if (res.status === 501) {
+            ctx.speak('Vision service is not configured.');
+            return;
+          }
+          if (res.status === 503 || res.status === 502) {
+            ctx.speak('Glasses are not connected.');
+            return;
+          }
+
+          const data = await res.json();
+          if (data.description) {
+            ctx.speak(data.description);
+          } else {
+            ctx.speak('No distinct objects detected.');
+          }
+        } catch {
+          ctx.speak('Glasses are not connected.');
+        }
+      },
+    });
   }
 }
 
