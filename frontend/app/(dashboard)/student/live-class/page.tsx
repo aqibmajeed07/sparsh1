@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { convertTextToSigns } from '@/lib/isl/textToSigns';
+import { useVoiceCommands } from '@/lib/voicevision/commands/registry';
 import {
   Mic, MicOff, Video, VideoOff, ScreenShare, Hand, Smile,
   MessageSquare, Users, PhoneOff, Send, Volume2,
@@ -702,6 +703,69 @@ export default function StudentLiveClassPage() {
       }).catch(() => {});
     }
   };
+
+  const liveVoiceCommands = useMemo(() => [
+    {
+      id: 'live-read-classes',
+      phrases: ['what classes do i have', 'list live classes', 'tell me about upcoming classes', 'check classes'],
+      description: 'Reads available live online classes from real schedule',
+      scope: (path: string) => path.includes('/student/live-class'),
+      handler: async (ctx: any) => {
+        if (!liveSessions || liveSessions.length === 0) {
+          ctx.speak('You have no active or scheduled live classes right now.');
+        } else {
+          const list = liveSessions
+            .map(s => `${s.title} with ${s.teacher_name || 'Instructor'}`)
+            .join('. Next class: ');
+          ctx.speak(`You have ${liveSessions.length} live classes available: ${list}. Say join next class to connect.`);
+        }
+      },
+    },
+    {
+      id: 'live-join-next',
+      phrases: ['join my next class', 'join class', 'connect to class', 'enter class', 'join live class'],
+      description: 'Connects to your next online class after verbal confirmation',
+      scope: (path: string) => path.includes('/student/live-class'),
+      requiresConfirmation: true,
+      confirmationPrompt: () => {
+        const nextClass = liveSessions[0];
+        if (!nextClass) return 'No live class is currently active. Do you still want to join the main classroom?';
+        return `Join ${nextClass.title} with ${nextClass.teacher_name || 'Instructor'}?`;
+      },
+      handler: async (ctx: any) => {
+        const target = liveSessions[0];
+        if (target) {
+          router.push(`/student/live-class?channel=${target.rtc_channel_id}`);
+          ctx.speak(`Connecting to ${target.title}. Your microphone and camera remain off for privacy.`);
+        } else {
+          ctx.speak('No active class available to join.');
+        }
+      },
+    },
+    {
+      id: 'live-raise-hand',
+      phrases: ['raise hand', 'raise my hand', 'lower hand', 'lower my hand'],
+      description: 'Toggles your hand raised state in the live class',
+      scope: (path: string) => path.includes('/student/live-class'),
+      handler: async (ctx: any) => {
+        await toggleHandRaise();
+        ctx.speak(handRaised ? 'Hand lowered.' : 'Hand raised in classroom.');
+      },
+    },
+    {
+      id: 'live-toggle-subtitles',
+      phrases: ['toggle subtitles', 'change subtitle language', 'switch subtitles', 'turn subtitles on', 'turn subtitles off'],
+      description: 'Toggles live subtitles between English and Hindi',
+      scope: (path: string) => path.includes('/student/live-class'),
+      handler: async (ctx: any) => {
+        const nextLang = subtitleLang === 'en' ? 'hi' : 'en';
+        setSubtitleLang(nextLang);
+        ctx.speak(`Subtitles switched to ${nextLang === 'en' ? 'English' : 'Hindi'}.`);
+      },
+    },
+  ], [liveSessions, handRaised, subtitleLang, router]);
+
+  useVoiceCommands('student-live-class', liveVoiceCommands);
 
   const sendReaction = async (emoji: string) => {
     setShowReactionPicker(false);

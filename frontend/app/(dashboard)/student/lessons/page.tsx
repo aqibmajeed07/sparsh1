@@ -1,9 +1,12 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useVoiceCommands } from '@/lib/voicevision/commands/registry';
 
 export default function LessonsPage() {
+  const router = useRouter();
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -45,6 +48,55 @@ export default function LessonsPage() {
     const matchBoard = board === 'All' || l.board === board;
     return matchSearch && matchSubject && matchGrade && matchBoard;
   });
+
+  const lessonsCommands = useMemo(() => [
+    {
+      id: 'lessons-read-list',
+      phrases: ['what lessons are here', 'list lessons', 'read lessons', 'available lessons'],
+      description: 'Reads available lessons from NCERT catalog',
+      scope: (path: string) => path === '/student/lessons',
+      handler: async (ctx: any) => {
+        if (filtered.length === 0) {
+          ctx.speak('No lessons matched your search. Say search for science or search for all to see lessons.');
+        } else {
+          const titles = filtered.slice(0, 3).map(l => `${l.title} in ${l.subject}`).join('. Next: ');
+          ctx.speak(`Showing ${filtered.length} lessons: ${titles}. Say open first lesson to start.`);
+        }
+      },
+    },
+    {
+      id: 'lessons-search',
+      phrases: ['search for physics', 'search for chemistry', 'search for biology', 'search for mathematics', 'search for science', 'find lesson', 'filter lessons'],
+      description: 'Searches lessons by subject or keyword',
+      scope: (path: string) => path === '/student/lessons',
+      handler: async (ctx: any) => {
+        const query = ctx.params.subject || ctx.params.query || '';
+        if (query) {
+          setSearch(query);
+          ctx.speak(`Filtering lessons for ${query}.`);
+        } else {
+          ctx.speak('What subject or topic would you like to search for?');
+        }
+      },
+    },
+    {
+      id: 'lessons-open-first',
+      phrases: ['open first lesson', 'open lesson 1', 'open lesson one', 'start first lesson', 'open lesson'],
+      description: 'Opens the first lesson in the filtered list',
+      scope: (path: string) => path === '/student/lessons',
+      handler: async (ctx: any) => {
+        if (filtered.length > 0) {
+          const target = filtered[0];
+          ctx.speak(`Opening ${target.title}.`);
+          router.push(`/student/lessons/${target.id}`);
+        } else {
+          ctx.speak('No lessons available to open.');
+        }
+      },
+    },
+  ], [filtered, router]);
+
+  useVoiceCommands('student-lessons-catalog', lessonsCommands);
 
   const dynamicSubjects = ['All', ...Array.from(new Set(lessons.map(l => l.subject).filter(Boolean)))].sort();
   const dynamicGrades = ['All', ...Array.from(new Set(lessons.map(l => String(l.grade)).filter(Boolean)))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : Number(a) - Number(b));

@@ -1,12 +1,14 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { hasSign, SIGN_POSES, tokenizeForSigning } from '@/lib/isl/signMap';
 import CelebrationOverlay from '@/components/ui/CelebrationOverlay';
 import { senseBand } from '@/lib/senseband';
+import { useVoiceCommands } from '@/lib/voicevision/commands/registry';
+import { PageMediaController } from '@/lib/voicevision/page/media';
 
 const SignAvatarOverlay = dynamic(
   () => import('@/components/live/SignAvatarOverlay'),
@@ -115,6 +117,124 @@ export default function LessonPlayerPage() {
     }
     if (id) fetchLesson();
   }, [id]);
+
+  const lessonCommands = useMemo(() => [
+    {
+      id: 'lesson-read-summary',
+      phrases: ['read this lesson', 'read summary', 'read accessible summary', 'read content', 'read lesson'],
+      description: 'Reads the accessible lesson summary or transcript in sentence chunks',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const textToRead = lesson?.accessible_summary || lesson?.transcript_text || lesson?.description;
+        if (!textToRead) {
+          ctx.speak('No text summary is available for this lesson yet.');
+          return;
+        }
+        ctx.speak(`Reading lesson summary for ${lesson.title || 'this lesson'}.`);
+        setTimeout(() => {
+          ctx.tts.speak(textToRead);
+        }, 1200);
+      },
+    },
+    {
+      id: 'lesson-next-sentence',
+      phrases: ['next sentence', 'next paragraph', 'read next', 'skip sentence', 'forward'],
+      description: 'Steps forward to the next sentence chunk',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        ctx.tts.next();
+      },
+    },
+    {
+      id: 'lesson-prev-sentence',
+      phrases: ['previous sentence', 'previous paragraph', 'go back a sentence', 'back sentence'],
+      description: 'Steps backward to the previous sentence chunk',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        ctx.tts.previous();
+      },
+    },
+    {
+      id: 'lesson-video-play',
+      phrases: ['play the lesson video', 'play video', 'start video', 'resume video'],
+      description: 'Plays the HTML5 lesson video',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const res = PageMediaController.play();
+        setIsPlaying(true);
+        ctx.speak(res.message);
+      },
+    },
+    {
+      id: 'lesson-video-pause',
+      phrases: ['pause the video', 'pause video', 'stop video'],
+      description: 'Pauses the HTML5 lesson video',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const res = PageMediaController.pause();
+        setIsPlaying(false);
+        ctx.speak(res.message);
+      },
+    },
+    {
+      id: 'lesson-video-seek-fwd',
+      phrases: ['fast forward 10 seconds', 'skip forward', 'forward 10 seconds'],
+      description: 'Fast forwards the video by 10 seconds',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const res = PageMediaController.seek(10);
+        ctx.speak(res.message);
+      },
+    },
+    {
+      id: 'lesson-video-seek-bwd',
+      phrases: ['rewind 10 seconds', 'skip back', 'back 10 seconds'],
+      description: 'Rewinds the video by 10 seconds',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const res = PageMediaController.seek(-10);
+        ctx.speak(res.message);
+      },
+    },
+    {
+      id: 'lesson-tab-switch',
+      phrases: ['open summary', 'open key points', 'open quiz', 'open transcript', 'open vocabulary', 'open notes'],
+      description: 'Switches between lesson content tabs',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const t = ctx.rawTranscript.toLowerCase();
+        if (t.includes('summary')) { setActiveTab('summary'); ctx.speak('Opened AI Summary tab.'); }
+        else if (t.includes('key points')) { setActiveTab('key points'); ctx.speak('Opened Key Points tab.'); }
+        else if (t.includes('quiz')) { setActiveTab('quiz'); ctx.speak('Opened Quiz tab.'); }
+        else if (t.includes('transcript')) { setActiveTab('transcript'); ctx.speak('Opened Full Transcript tab.'); }
+        else if (t.includes('vocabulary')) { setActiveTab('vocabulary'); ctx.speak('Opened Key Vocabulary tab.'); }
+        else if (t.includes('notes')) { setActiveTab('notes'); ctx.speak('Opened Notes tab.'); }
+      },
+    },
+    {
+      id: 'lesson-doubt-solver',
+      phrases: ['explain simply', 'have a doubt', 'simplify this lesson', 'ai doubt solver'],
+      description: 'Asks AI Doubt Solver to explain this lesson simply',
+      scope: (path: string) => path.includes('/student/lessons/'),
+      handler: async (ctx: any) => {
+        const textToExplain = lesson?.accessible_summary || lesson?.title || 'Science';
+        ctx.speak('Asking AI Doubt Solver for a simplified explanation.');
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/doubt-solver`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: textToExplain })
+          });
+          const data = await res.json();
+          ctx.speak(data.simple_explanation || 'This concept explains how natural principles function step by step.');
+        } catch {
+          ctx.speak(`${textToExplain} is a core foundation lesson. Review each concept step by step!`);
+        }
+      },
+    },
+  ], [lesson]);
+
+  useVoiceCommands('lesson-detail', lessonCommands);
 
   if (loading) {
     return (
@@ -353,12 +473,12 @@ export default function LessonPlayerPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="glass-card p-5 min-h-[400px] max-h-[600px] overflow-y-auto">
+          <div className="glass-card p-5 min-h-[400px] max-h-[600px] overflow-y-auto" data-voice-region="lesson-content">
             {activeTab === 'summary' && (
               <div className="space-y-4">
                 <h3 className="text-[#00C9A7] font-semibold text-sm flex items-center gap-2"><span>✨</span> AI Summary</h3>
                 {lesson.accessible_summary ? (
-                  <p className="text-white/80 text-sm leading-relaxed p-4 bg-[#6C63FF]/5 rounded-xl border border-[#6C63FF]/20 shadow-inner">
+                  <p data-voice-item className="text-white/80 text-sm leading-relaxed p-4 bg-[#6C63FF]/5 rounded-xl border border-[#6C63FF]/20 shadow-inner">
                     {lesson.accessible_summary}
                   </p>
                 ) : (

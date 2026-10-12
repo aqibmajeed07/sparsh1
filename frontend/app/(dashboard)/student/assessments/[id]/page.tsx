@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { senseBand } from '@/lib/senseband';
+import { useVoiceCommands } from '@/lib/voicevision/commands/registry';
 
 const QUIZ_QUESTIONS = [
   { id: 1, question: 'What is the smallest particle of an element that retains its chemical properties?', options: ['Molecule', 'Atom', 'Electron', 'Proton'], correct: 1 },
@@ -39,6 +40,99 @@ export default function AssessmentTakePage() {
     // Notify student that quiz is done via SenseBand
     senseBand.send('LESSON_COMPLETE');
   };
+
+  const quizCommands = useMemo(() => [
+    {
+      id: 'quiz-read-question',
+      phrases: ['read the question', 'read question', 'what is the question', 'repeat question'],
+      description: 'Reads the active quiz question',
+      scope: (path: string) => path.includes('/student/assessments/'),
+      handler: async (ctx: any) => {
+        const q = QUIZ_QUESTIONS[currentQ];
+        ctx.speak(`Question ${currentQ + 1} of ${QUIZ_QUESTIONS.length}: ${q.question}`);
+      },
+    },
+    {
+      id: 'quiz-read-options',
+      phrases: ['read options', 'read the choices', 'what are the options', 'list options'],
+      description: 'Reads the multiple-choice options for the current question',
+      scope: (path: string) => path.includes('/student/assessments/'),
+      handler: async (ctx: any) => {
+        const q = QUIZ_QUESTIONS[currentQ];
+        const text = q.options.map((opt, i) => `Option ${i + 1}: ${opt}`).join('. ');
+        ctx.speak(text);
+      },
+    },
+    {
+      id: 'quiz-select-option',
+      phrases: ['select option 1', 'select option 2', 'select option 3', 'select option 4', 'choose option', 'option 1', 'option 2', 'option 3', 'option 4'],
+      description: 'Selects a multiple-choice option by number or name',
+      scope: (path: string) => path.includes('/student/assessments/'),
+      handler: async (ctx: any) => {
+        const q = QUIZ_QUESTIONS[currentQ];
+        let chosen = ctx.params.number ? ctx.params.number - 1 : -1;
+        if (chosen < 0 || chosen >= q.options.length) {
+          const lower = ctx.rawTranscript.toLowerCase();
+          chosen = q.options.findIndex(opt => lower.includes(opt.toLowerCase()));
+        }
+
+        if (chosen >= 0 && chosen < q.options.length) {
+          handleAnswer(chosen);
+          ctx.speak(`Selected option ${chosen + 1}: ${q.options[chosen]}.`);
+        } else {
+          ctx.speak('Please specify option 1, 2, 3, or 4.');
+        }
+      },
+    },
+    {
+      id: 'quiz-next-question',
+      phrases: ['next question', 'go to next question', 'advance question'],
+      description: 'Moves forward to the next quiz question',
+      scope: (path: string) => path.includes('/student/assessments/'),
+      handler: async (ctx: any) => {
+        if (currentQ < QUIZ_QUESTIONS.length - 1) {
+          const next = currentQ + 1;
+          setCurrentQ(next);
+          ctx.speak(`Moved to question ${next + 1}. ${QUIZ_QUESTIONS[next].question}`);
+        } else {
+          ctx.speak('You are on the last question. Say submit quiz to finish.');
+        }
+      },
+    },
+    {
+      id: 'quiz-prev-question',
+      phrases: ['previous question', 'go back a question', 'back question'],
+      description: 'Moves backward to the previous quiz question',
+      scope: (path: string) => path.includes('/student/assessments/'),
+      handler: async (ctx: any) => {
+        if (currentQ > 0) {
+          const prev = currentQ - 1;
+          setCurrentQ(prev);
+          ctx.speak(`Moved back to question ${prev + 1}. ${QUIZ_QUESTIONS[prev].question}`);
+        } else {
+          ctx.speak('You are on the first question.');
+        }
+      },
+    },
+    {
+      id: 'quiz-submit',
+      phrases: ['submit quiz', 'finish quiz', 'submit assessment', 'complete quiz'],
+      description: 'Submits your quiz after verbal confirmation',
+      scope: (path: string) => path.includes('/student/assessments/'),
+      requiresConfirmation: true,
+      confirmationPrompt: () => {
+        const answered = answers.filter(a => a !== null).length;
+        return `You have answered ${answered} of ${QUIZ_QUESTIONS.length} questions. Are you sure you want to submit your quiz?`;
+      },
+      handler: async (ctx: any) => {
+        handleSubmit();
+        const calculatedScore = Math.round((answers.filter((a, i) => a === QUIZ_QUESTIONS[i].correct).length / QUIZ_QUESTIONS.length) * 100);
+        ctx.speak(`Quiz submitted! Your score is ${calculatedScore} percent. ${calculatedScore >= 60 ? 'Congratulations, you passed!' : 'Review your answers below.'}`);
+      },
+    },
+  ], [currentQ, answers]);
+
+  useVoiceCommands('student-quiz-take', quizCommands);
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 

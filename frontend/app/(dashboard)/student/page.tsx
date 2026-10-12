@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useVoiceCommands } from '@/lib/voicevision/commands/registry';
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState<any>(null);
@@ -9,6 +10,49 @@ export default function StudentDashboard() {
   const [liveSession, setLiveSession] = useState<any>(null);
   const [stats, setStats] = useState({ lessonsTotal: 0, streak: 0, signHours: 0, lessonsDone: 0 });
   const [loading, setLoading] = useState(true);
+
+  const dashboardCommands = useMemo(() => [
+    {
+      id: 'dash-read-stats',
+      phrases: ['what is my streak', 'read my stats', 'tell me my progress', 'how many lessons done', 'my progress', 'read stats'],
+      description: 'Reads your learning stats and current streak',
+      scope: (path: string) => path === '/student',
+      handler: async (ctx: any) => {
+        const studentName = profile?.full_name || 'Learner';
+        ctx.speak(`Hello ${studentName}. You have a ${stats.streak} day streak, ${stats.lessonsDone} lessons completed, and ${stats.signHours} hours of sign language practice.`);
+      },
+    },
+    {
+      id: 'dash-check-live',
+      phrases: ['tell me about upcoming classes', 'is there a class now', 'check live class', 'any live class', 'upcoming classes'],
+      description: 'Checks if an online class is currently active',
+      scope: (path: string) => path === '/student',
+      handler: async (ctx: any) => {
+        if (liveSession) {
+          ctx.speak(`You have an active online class: ${liveSession.title || 'Inclusive Class'} with ${liveSession.teacher_name || 'Instructor'}. Say open online classes to join.`);
+        } else {
+          ctx.speak('You have no active classes right now. Say open lessons to continue learning.');
+        }
+      },
+    },
+    {
+      id: 'dash-continue-learning',
+      phrases: ['continue learning', 'start learning', 'open recent lesson'],
+      description: 'Opens your most recent lesson',
+      scope: (path: string) => path === '/student',
+      handler: async (ctx: any) => {
+        if (recentLessons.length > 0) {
+          ctx.speak(`Opening recent lesson: ${recentLessons[0].title}.`);
+          ctx.navigate(`/student/lessons/${recentLessons[0].id}`);
+        } else {
+          ctx.speak('Opening lessons catalog.');
+          ctx.navigate('/student/lessons');
+        }
+      },
+    },
+  ], [profile, stats, liveSession, recentLessons]);
+
+  useVoiceCommands('student-dashboard', dashboardCommands);
 
   useEffect(() => {
     let channels: any[] = [];
