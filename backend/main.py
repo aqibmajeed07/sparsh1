@@ -1973,18 +1973,23 @@ async def create_live_class(req: LiveClassCreateRequest):
     # 2. Sync to Supabase if reachable
     if supabase:
         try:
-            res = supabase.table("live_sessions").insert({
+            import re
+            insert_data = {
                 "rtc_channel_id": channel_name,
                 "title": req.title,
                 "subject": req.subject,
                 "grade": str(req.grade),
-                "teacher_id": req.teacher_id,
-                "teacher_name": req.teacher_name or "Teacher",
-                "institution_id": req.institution_id,
                 "status": "live",
-                "is_active": True,
+                "caption_enabled": True,
+                "isl_enabled": True,
                 "started_at": datetime.now(timezone.utc).isoformat()
-            }).execute()
+            }
+            if req.teacher_id and re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', req.teacher_id, re.I):
+                insert_data["teacher_id"] = req.teacher_id
+            if req.institution_id:
+                insert_data["institution_id"] = req.institution_id
+
+            res = supabase.table("live_sessions").insert(insert_data).execute()
             if res.data:
                 session_data["id"] = res.data[0].get("id", session_data["id"])
                 live_manager.sessions[channel_name] = session_data

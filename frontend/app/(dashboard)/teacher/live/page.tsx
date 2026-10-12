@@ -20,19 +20,61 @@ export default function TeacherLivePage() {
     { user: 'System', message: 'Session started. Share the join link with your students.' },
   ]);
 
+  const [pastSessions, setPastSessions] = useState<any[]>([]);
+
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (data) setProfile(data);
     });
-  }, []);
 
-  // Connect real-time chat & WebSocket sync
+    // Load real past sessions from Supabase
+    supabase
+      .from('live_sessions')
+      .select('*')
+      .eq('status', 'ended')
+      .order('started_at', { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setPastSessions(data);
+        } else {
+          setPastSessions([]);
+        }
+      });
+  }, [isLive]);
+
+  // Connect real-time chat & Universal Supabase Broadcast sync
   useEffect(() => {
     if (!isLive || !channelName) return;
 
-    // Load initial chat
+    // 1. Universal Supabase Realtime Broadcast (instant multi-device sync, zero mixed-content)
+    const rtChannel = supabase.channel(`live_room_${channelName}`, {
+      config: { broadcast: { self: false } }
+    });
+
+    rtChannel
+      .on('broadcast', { event: 'NEW_MESSAGE' }, ({ payload }) => {
+        if (payload?.text) {
+          setChatMessages(prev => {
+            if (prev.some(m => m.message === payload.text && m.user === payload.sender)) return prev;
+            return [...prev, { user: payload.sender || 'Student', message: payload.text }];
+          });
+        }
+      })
+      .on('broadcast', { event: 'LIVE_EVENT' }, ({ payload }) => {
+        if (payload?.type === 'NEW_MESSAGE' && payload.message) {
+          const msg = payload.message;
+          setChatMessages(prev => {
+            if (prev.some(m => m.message === msg.text && m.user === msg.sender)) return prev;
+            return [...prev, { user: msg.sender || 'Student', message: msg.text }];
+          });
+        }
+      })
+      .subscribe();
+
+    // 2. Load initial chat history from backend if available
     fetch(`/api/live-classes/${channelName}/chat`)
       .then(r => r.json())
       .then(d => {
@@ -42,25 +84,30 @@ export default function TeacherLivePage() {
       })
       .catch(() => {});
 
-    // WebSocket real-time connection
+    // 3. Connect to local WebSocket ONLY if running on local HTTP development (never on HTTPS to prevent Mixed Content)
     let ws: WebSocket | null = null;
-    try {
-      const wsHost = window.location.hostname || '127.0.0.1';
-      ws = new WebSocket(`ws://${wsHost}:8000/ws/live-class/${channelName}`);
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'NEW_MESSAGE' && data.message) {
-            setChatMessages(prev => {
-              if (prev.some(m => m.message === data.message.text && m.user === data.message.sender)) return prev;
-              return [...prev, { user: data.message.sender, message: data.message.text }];
-            });
-          }
-        } catch (_) {}
-      };
-    } catch (_) {}
+    const isLocal = typeof window !== 'undefined' &&
+      window.location.protocol === 'http:' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    // Polling fallback every 4s
+    if (isLocal) {
+      try {
+        ws = new WebSocket(`ws://${window.location.hostname}:8000/ws/live-class/${channelName}`);
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'NEW_MESSAGE' && data.message) {
+              setChatMessages(prev => {
+                if (prev.some(m => m.message === data.message.text && m.user === data.message.sender)) return prev;
+                return [...prev, { user: data.message.sender, message: data.message.text }];
+              });
+            }
+          } catch (_) {}
+        };
+      } catch (_) {}
+    }
+
+    // 4. Polling fallback every 4s
     const pollInterval = setInterval(() => {
       fetch(`/api/live-classes/${channelName}/chat`)
         .then(r => r.json())
@@ -73,6 +120,7 @@ export default function TeacherLivePage() {
     }, 4000);
 
     return () => {
+      supabase.removeChannel(rtChannel);
       if (ws) ws.close();
       clearInterval(pollInterval);
     };
@@ -92,8 +140,8 @@ export default function TeacherLivePage() {
           title: sessionTitle,
           subject: sessionSubject,
           grade: sessionGrade,
-          teacher_id: profile?.id || 'teacher-host',
-          teacher_name: profile?.full_name || 'Class Instructor',
+          teacher_id: profile?.id || null,
+          teacher_name: profile?.full_name || 'Teacher',
           institution_id: profile?.institution_id || null
         })
       });
@@ -105,25 +153,32 @@ export default function TeacherLivePage() {
       console.warn('Backend live class create fallback:', e);
     }
 
-    // 2. Broadcast to Supabase — fails silently if live_sessions table doesn't exist yet
-    if (profile) {
-      try {
-        const { data, error } = await supabase.from('live_sessions').insert({
-          rtc_channel_id: name,
-          title: sessionTitle,
-          subject: sessionSubject,
-          grade: sessionGrade,
-          institution_id: profile.institution_id || null,
-          teacher_id: profile.id,
-          teacher_name: profile.full_name || 'Teacher',
-          status: 'live',
-          started_at: new Date().toISOString()
-        }).select().single();
-        if (data && !error) setSessionId(data.id);
-      } catch (e) {
-        // Fail silently during initial DB setup
+    // 2. Broadcast to Supabase — only include existing columns to avoid 400 Bad Request
+    try {
+      const sessPayload: Record<string, any> = {
+        rtc_channel_id: name,
+        title: sessionTitle,
+        subject: sessionSubject,
+        grade: sessionGrade,
+        status: 'live',
+        caption_enabled: captionEnabled,
+        isl_enabled: islEnabled,
+        started_at: new Date().toISOString()
+      };
+      // Only set teacher_id if it's a valid UUID
+      if (profile?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id)) {
+        sessPayload.teacher_id = profile.id;
       }
+      if (profile?.institution_id) {
+        sessPayload.institution_id = profile.institution_id;
+      }
+
+      const { data, error } = await supabase.from('live_sessions').insert(sessPayload).select().single();
+      if (data && !error) setSessionId(data.id);
+    } catch (e) {
+      console.warn('Supabase session insert fallback:', e);
     }
+
     setIsLive(true);
   };
 
@@ -131,6 +186,14 @@ export default function TeacherLivePage() {
     if (channelName) {
       try {
         await fetch(`/api/live-classes/${channelName}/end`, { method: 'POST' });
+      } catch (_) {}
+      try {
+        const channel = supabase.channel(`live_room_${channelName}`);
+        channel.send({
+          type: 'broadcast',
+          event: 'LIVE_EVENT',
+          payload: { type: 'SESSION_ENDED', channel_id: channelName }
+        });
       } catch (_) {}
     }
     if (sessionId) {
@@ -143,7 +206,26 @@ export default function TeacherLivePage() {
   const sendTeacherMessage = async (text: string) => {
     if (!text.trim() || !channelName) return;
     const sender = profile?.full_name || 'Teacher (Host)';
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setChatMessages(m => [...m, { user: 'You', message: text }]);
+
+    // 1. Universal Supabase Realtime broadcast (delivers to phones, tablets, and any other device instantly)
+    try {
+      const channel = supabase.channel(`live_room_${channelName}`);
+      channel.send({
+        type: 'broadcast',
+        event: 'NEW_MESSAGE',
+        payload: {
+          id: `msg-${Date.now()}`,
+          sender: sender,
+          role: 'teacher',
+          text: text,
+          time: timeStr
+        }
+      });
+    } catch (_) {}
+
+    // 2. Also persist to backend API
     try {
       await fetch(`/api/live-classes/${channelName}/chat`, {
         method: 'POST',
@@ -151,7 +233,8 @@ export default function TeacherLivePage() {
         body: JSON.stringify({
           sender: sender,
           role: 'teacher',
-          text: text
+          text: text,
+          time: timeStr
         })
       });
     } catch (_) {}
@@ -316,22 +399,26 @@ export default function TeacherLivePage() {
       </div>
 
       <div className="glass-card p-6">
-        <h3 className="text-white font-semibold mb-4">Past Sessions</h3>
-        <div className="space-y-3">
-          {[
-            { title: 'Mathematics — Quadratic Equations', date: 'Apr 16', duration: '45 min', students: 22 },
-            { title: 'Science — Motion', date: 'Apr 14', duration: '38 min', students: 19 },
-            { title: 'History — Mughal Empire', date: 'Apr 12', duration: '42 min', students: 25 },
-          ].map((s, i) => (
-            <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white/5 rounded-xl gap-2">
-              <div>
-                <p className="text-white font-medium text-sm">{s.title}</p>
-                <p className="text-white/40 text-xs">{s.date} • {s.duration} • {s.students} students</p>
+        <h3 className="text-white font-semibold mb-3">Past Sessions</h3>
+        {pastSessions.length === 0 ? (
+          <div className="py-6 text-center text-white/40 text-xs">
+            No completed sessions recorded yet. Completed classes will appear here automatically.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pastSessions.map((s, i) => (
+              <div key={s.id || i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white/5 rounded-xl gap-2">
+                <div>
+                  <p className="text-white font-medium text-sm">{s.title}</p>
+                  <p className="text-white/40 text-xs">
+                    Grade {s.grade} • {s.subject} • {s.started_at ? new Date(s.started_at).toLocaleDateString() : 'Recent'}
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-white/5 text-white/50 rounded-lg text-xs self-start sm:self-center">Ended</span>
               </div>
-              <button className="px-3 py-1.5 bg-[#6C63FF]/20 text-[#6C63FF] rounded-lg text-xs self-start sm:self-center">Recording</button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

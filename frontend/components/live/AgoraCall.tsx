@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import SignAvatarOverlay from './SignAvatarOverlay';
 import { convertTextToSigns } from '@/lib/isl/textToSigns';
+import { supabase } from '@/lib/supabase';
 
 interface AgoraCallProps {
   channelName: string;
@@ -147,6 +148,23 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
         }
       } finally {
         if (channelName && transcript) {
+          // 1. Universal Supabase Realtime Broadcast (instant delivery to all devices)
+          try {
+            const rtChan = supabase.channel(`live_room_${channelName}`);
+            rtChan.send({
+              type: 'broadcast',
+              event: 'TEACHER_SPEECH',
+              payload: {
+                speech: {
+                  text: transcript,
+                  speaker: userName || 'Teacher',
+                  sign_tokens: finalTokens
+                }
+              }
+            });
+          } catch (_) {}
+
+          // 2. Also record on backend API
           fetch(`/api/live-classes/${channelName}/speech`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

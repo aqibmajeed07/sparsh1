@@ -533,8 +533,18 @@ export default function SignAvatarOverlay({
           camera={{ position: [0, 0.45, 2.35], fov: 37, near: 0.05, far: 20 }}
           gl={{
             antialias: true,
+            powerPreference: 'default',
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.35,
+          }}
+          onCreated={({ gl }) => {
+            gl.domElement.addEventListener('webglcontextlost', (event) => {
+              event.preventDefault();
+              console.warn('[Avatar 3D] WebGL Context lost. Auto-recovering...');
+            }, false);
+            gl.domElement.addEventListener('webglcontextrestored', () => {
+              console.log('[Avatar 3D] WebGL Context restored.');
+            }, false);
           }}
         >
           <CameraTarget />

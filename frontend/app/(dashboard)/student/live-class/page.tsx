@@ -188,12 +188,17 @@ export default function StudentLiveClassPage() {
   const fetchActiveClasses = useCallback(async () => {
     setLoadingSessions(true);
     try {
+      const now = Date.now();
       // 1. Try real backend endpoint
-      const res = await fetch('/api/live-classes/active', { cache: 'no-store' });
-      if (res.ok) {
+      const res = await fetch('/api/live-classes/active', { cache: 'no-store' }).catch(() => null);
+      if (res && res.ok) {
         const data = await res.json();
         if (data.classes && Array.isArray(data.classes)) {
-          setLiveSessions(data.classes);
+          const fresh = data.classes.filter((c: any) => {
+            if (!c.started_at) return true;
+            return (now - new Date(c.started_at).getTime()) < 8 * 3600 * 1000;
+          });
+          setLiveSessions(fresh);
           setLoadingSessions(false);
           return;
         }
@@ -206,8 +211,12 @@ export default function StudentLiveClassPage() {
         .eq('status', 'live')
         .order('started_at', { ascending: false });
 
-      if (dbSessions) {
-        setLiveSessions(dbSessions);
+      if (dbSessions && dbSessions.length > 0) {
+        const fresh = dbSessions.filter((c: any) => {
+          if (!c.started_at) return true;
+          return (now - new Date(c.started_at).getTime()) < 8 * 3600 * 1000;
+        });
+        setLiveSessions(fresh);
       } else {
         setLiveSessions([]);
       }
@@ -329,90 +338,123 @@ export default function StudentLiveClassPage() {
       })
       .catch(() => {});
 
-    // Connect to Real-Time WebSocket
-    const wsHost = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const wsUrl = `ws://${wsHost}:8000/ws/live-class/${activeChannel}`;
-    let ws: WebSocket | null = null;
+    // 1. Universal Supabase Realtime Broadcast Channel (works across all devices over WSS)
+    const rtChannel = supabase.channel(`live_room_${activeChannel}`, {
+      config: { broadcast: { self: false } }
+    });
 
-    try {
-      ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    const handleRoomEvent = (payload: any) => {
+      if (payload.type === 'NEW_MESSAGE' && payload.message) {
+        setChatMessages(prev => {
+          if (prev.some(m => m.id === payload.message.id || (m.text === payload.message.text && m.sender === payload.message.sender))) return prev;
+          return [...prev, payload.message];
+        });
+        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      } else if (payload.type === 'TEACHER_SPEECH' && payload.speech) {
+        // Teacher spoke! Update subtitles & trigger 3D Avatar signs
+        const s = payload.speech;
+        if (s.text) {
+          setCurrentSubtitleEn(s.text);
+          if (s.hindi) setCurrentSubtitleHi(s.hindi);
 
-      ws.onopen = () => {
-        console.log(`[Live Classroom] WebSocket connected to room: ${activeChannel}`);
-      };
+          const tokens = s.sign_tokens && s.sign_tokens.length > 0 
+            ? s.sign_tokens 
+            : convertTextToSigns(s.text);
 
-      ws.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          
-          if (payload.type === 'NEW_MESSAGE' && payload.message) {
-            setChatMessages(prev => {
-              if (prev.some(m => m.id === payload.message.id)) return prev;
-              return [...prev, payload.message];
-            });
-            setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-          } else if (payload.type === 'TEACHER_SPEECH' && payload.speech) {
-            // Teacher spoke! Update subtitles & trigger 3D Avatar signs
-            const s = payload.speech;
-            if (s.text) {
-              setCurrentSubtitleEn(s.text);
-              if (s.hindi) setCurrentSubtitleHi(s.hindi);
+          if (tokens.length > 0) {
+            setAvatarQueue(prev => [...prev, ...tokens]);
+            setActiveSignedWord(tokens[0]);
+          }
 
-              const tokens = s.sign_tokens && s.sign_tokens.length > 0 
-                ? s.sign_tokens 
-                : convertTextToSigns(s.text);
+          // Speak aloud via TTS
+          if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(s.text);
+            utter.rate = 0.95;
+            utter.lang = 'en-IN';
+            window.speechSynthesis.speak(utter);
+          }
+        }
+      } else if (payload.type === 'REACTION' && payload.reaction) {
+        const rx = Math.floor(Math.random() * 60) + 20;
+        setReactions(prev => [...prev, { id: String(Date.now() + Math.random()), emoji: payload.reaction.emoji, x: rx }]);
+        setTimeout(() => {
+          setReactions(prev => prev.slice(1));
+        }, 2500);
+      } else if (payload.type === 'HAND_RAISE' && payload.data) {
+        setHandRaiseAlert(`✋ ${payload.data.name} ${payload.data.raised ? 'raised hand' : 'lowered hand'}`);
+        setTimeout(() => setHandRaiseAlert(null), 3500);
+        setParticipants(prev =>
+          prev.map(p => p.id === payload.data.participant_id ? { ...p, hand_raised: payload.data.raised } : p)
+        );
+      } else if (payload.type === 'PARTICIPANT_JOINED' && payload.participant) {
+        setParticipants(prev => {
+          const exists = prev.find(p => p.id === payload.participant.id);
+          return exists ? prev : [...prev, payload.participant];
+        });
+      } else if (payload.type === 'PARTICIPANT_LEFT') {
+        setParticipants(prev => prev.filter(p => p.id !== payload.participant_id));
+      } else if (payload.type === 'SESSION_ENDED') {
+        alert('The teacher has ended this live session.');
+        router.push('/student/live-class');
+      }
+    };
 
-              if (tokens.length > 0) {
-                setAvatarQueue(prev => [...prev, ...tokens]);
-                setActiveSignedWord(tokens[0]);
-              }
-
-              // Speak aloud via TTS
-              if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utter = new SpeechSynthesisUtterance(s.text);
-                utter.rate = 0.95;
-                utter.lang = 'en-IN';
-                window.speechSynthesis.speak(utter);
+    rtChannel
+      .on('broadcast', { event: 'LIVE_EVENT' }, ({ payload }) => {
+        handleRoomEvent(payload);
+      })
+      .on('broadcast', { event: 'NEW_MESSAGE' }, ({ payload }) => {
+        handleRoomEvent({ type: 'NEW_MESSAGE', message: payload });
+      })
+      .on('broadcast', { event: 'TEACHER_SPEECH' }, ({ payload }) => {
+        handleRoomEvent(payload);
+      })
+      .on('broadcast', { event: 'REACTION' }, ({ payload }) => {
+        handleRoomEvent({ type: 'REACTION', reaction: payload });
+      })
+      .on('broadcast', { event: 'HAND_RAISE' }, ({ payload }) => {
+        handleRoomEvent({ type: 'HAND_RAISE', data: payload });
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          rtChannel.send({
+            type: 'broadcast',
+            event: 'LIVE_EVENT',
+            payload: {
+              type: 'PARTICIPANT_JOINED',
+              participant: {
+                id: studentId,
+                name: studentName,
+                role: 'student',
+                has_audio: !micMuted,
+                has_video: !camOff
               }
             }
-          } else if (payload.type === 'REACTION' && payload.reaction) {
-            const rx = Math.floor(Math.random() * 60) + 20;
-            setReactions(prev => [...prev, { id: String(Date.now() + Math.random()), emoji: payload.reaction.emoji, x: rx }]);
-            setTimeout(() => {
-              setReactions(prev => prev.slice(1));
-            }, 2500);
-          } else if (payload.type === 'HAND_RAISE' && payload.data) {
-            setHandRaiseAlert(`✋ ${payload.data.name} ${payload.data.raised ? 'raised hand' : 'lowered hand'}`);
-            setTimeout(() => setHandRaiseAlert(null), 3500);
-            setParticipants(prev =>
-              prev.map(p => p.id === payload.data.participant_id ? { ...p, hand_raised: payload.data.raised } : p)
-            );
-          } else if (payload.type === 'PARTICIPANT_JOINED' && payload.participant) {
-            setParticipants(prev => {
-              const exists = prev.find(p => p.id === payload.participant.id);
-              return exists ? prev : [...prev, payload.participant];
-            });
-          } else if (payload.type === 'PARTICIPANT_LEFT') {
-            setParticipants(prev => prev.filter(p => p.id !== payload.participant_id));
-          } else if (payload.type === 'SESSION_ENDED') {
-            alert('The teacher has ended this live session.');
-            router.push('/student/live-class');
-          }
-        } catch (e) {
-          console.warn('Error parsing live classroom WS message:', e);
+          });
         }
-      };
+      });
 
-      ws.onerror = (e) => {
-        console.warn('[Live Classroom] WS connection notice:', e);
-      };
-    } catch (e) {
-      console.warn('WebSocket init error:', e);
+    // 2. Connect to local WebSocket ONLY if on local HTTP development (never on HTTPS to prevent Mixed Content)
+    let ws: WebSocket | null = null;
+    const isLocal = typeof window !== 'undefined' &&
+      window.location.protocol === 'http:' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    if (isLocal) {
+      try {
+        ws = new WebSocket(`ws://${window.location.hostname}:8000/ws/live-class/${activeChannel}`);
+        wsRef.current = ws;
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            handleRoomEvent(payload);
+          } catch (_) {}
+        };
+      } catch (_) {}
     }
 
-    // Periodic chat poll as resilient fallback
+    // 3. Periodic chat poll as resilient fallback
     const pollInterval = setInterval(() => {
       fetch(`/api/live-classes/${activeChannel}/chat`)
         .then(res => res.json())
@@ -425,6 +467,7 @@ export default function StudentLiveClassPage() {
     }, 4000);
 
     return () => {
+      supabase.removeChannel(rtChannel);
       clearInterval(pollInterval);
       if (ws) ws.close();
       // Leave room on backend
@@ -606,13 +649,25 @@ export default function StudentLiveClassPage() {
   const toggleHandRaise = async () => {
     const nextState = !handRaised;
     setHandRaised(nextState);
+    const pId = userProfile?.id || `student-${Date.now()}`;
+    const pName = userProfile?.full_name || 'You';
+
     if (activeChannel) {
+      try {
+        const channel = supabase.channel(`live_room_${activeChannel}`);
+        channel.send({
+          type: 'broadcast',
+          event: 'HAND_RAISE',
+          payload: { participant_id: pId, name: pName, raised: nextState }
+        });
+      } catch (_) {}
+
       fetch(`/api/live-classes/${activeChannel}/hand-raise`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          participant_id: userProfile?.id || 'you',
-          name: userProfile?.full_name || 'You',
+          participant_id: pId,
+          name: pName,
           raised: nextState,
         }),
       }).catch(() => {});
@@ -622,6 +677,20 @@ export default function StudentLiveClassPage() {
   const sendReaction = async (emoji: string) => {
     setShowReactionPicker(false);
     if (!activeChannel) return;
+
+    const rx = Math.floor(Math.random() * 60) + 20;
+    setReactions(prev => [...prev, { id: String(Date.now() + Math.random()), emoji, x: rx }]);
+    setTimeout(() => setReactions(prev => prev.slice(1)), 2500);
+
+    try {
+      const channel = supabase.channel(`live_room_${activeChannel}`);
+      channel.send({
+        type: 'broadcast',
+        event: 'REACTION',
+        payload: { emoji, sender: userProfile?.full_name || 'Student' }
+      });
+    } catch (_) {}
+
     fetch(`/api/live-classes/${activeChannel}/reaction`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -638,6 +707,26 @@ export default function StudentLiveClassPage() {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     if (!textToSend) setChatInput('');
+
+    const newMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: senderName,
+      role: 'student',
+      text,
+      time: timeStr,
+    };
+
+    setChatMessages(prev => [...prev, newMsg]);
+    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+
+    try {
+      const channel = supabase.channel(`live_room_${activeChannel}`);
+      channel.send({
+        type: 'broadcast',
+        event: 'NEW_MESSAGE',
+        payload: newMsg
+      });
+    } catch (_) {}
 
     try {
       await fetch(`/api/live-classes/${activeChannel}/chat`, {

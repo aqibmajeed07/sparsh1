@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS public.live_sessions (
 CREATE INDEX IF NOT EXISTS idx_live_sessions_status ON public.live_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_live_sessions_channel ON public.live_sessions(rtc_channel_id);
 
+-- Safely ensure columns exist on previously created tables
+ALTER TABLE public.live_sessions ADD COLUMN IF NOT EXISTS teacher_name TEXT DEFAULT 'Teacher';
+ALTER TABLE public.live_sessions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE public.live_sessions ADD COLUMN IF NOT EXISTS caption_enabled BOOLEAN DEFAULT true;
+ALTER TABLE public.live_sessions ADD COLUMN IF NOT EXISTS isl_enabled BOOLEAN DEFAULT true;
+ALTER TABLE public.live_sessions ADD COLUMN IF NOT EXISTS participant_count INTEGER DEFAULT 0;
+
 -- 2. LIVE CLASS CHAT MESSAGES TABLE
 CREATE TABLE IF NOT EXISTS public.live_class_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
