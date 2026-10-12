@@ -20,6 +20,7 @@ const VOICE_ROUTES: { keywords: string[]; path: string; label: string }[] = [
     { keywords: ['progress', 'analytics', 'stats', 'score', 'performance'], path: '/student/progress', label: 'Progress & Analytics' },
     { keywords: ['reward', 'rewards', 'badge', 'badges', 'streak', 'points', 'trophy'], path: '/student/rewards', label: 'Rewards & Badges' },
     { keywords: ['senseband', 'sense band', 'band', 'haptics', 'vibration'], path: '/student/senseband', label: 'SenseBand Control' },
+    { keywords: ['smart gloves', 'smart glove', 'glove', 'gloves', 'flex sensor', 'flex sensors'], path: '/student/smart-gloves', label: 'AI Smart Gloves' },
     { keywords: ['ncert', 'library', 'books', 'ncert library'], path: '/student/ncert-library', label: 'NCERT Library' },
     { keywords: ['deafblind', 'tadoma', 'tactile learning', 'deaf blind'], path: '/student/deafblind', label: 'DeafBlind Learning' },
     { keywords: ['test', 'quiz', 'assessment', 'assessments', 'exam'], path: '/student/assessments', label: 'Assessments' },

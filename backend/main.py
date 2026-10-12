@@ -1,7 +1,8 @@
 import os
 import json
+import math
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Request, Body
 import urllib.error
 import base64
 from fastapi.middleware.cors import CORSMiddleware
@@ -115,6 +116,38 @@ class LiveClassHandRaise(BaseModel):
     participant_id: str
     name: str
     raised: bool = True
+
+class GloveSensorPayload(BaseModel):
+    seq: Optional[int] = 0
+    thumb: int
+    index: int
+    middle: int
+    ring: int
+    little: int
+    norm: Optional[List[float]] = None
+    calibrated: Optional[bool] = False
+    device_id: Optional[str] = "esp32-sparsh-glove"
+
+class GloveFingerCalibration(BaseModel):
+    straightVal: int
+    bentVal: int
+    inverted: Optional[bool] = False
+
+class GloveCalibrationProfile(BaseModel):
+    user_id: Optional[str] = None
+    device_id: Optional[str] = "esp32-sparsh-glove"
+    thumb: GloveFingerCalibration
+    index: GloveFingerCalibration
+    middle: GloveFingerCalibration
+    ring: GloveFingerCalibration
+    little: GloveFingerCalibration
+    updated_at: Optional[str] = None
+
+class GloveRecognizeRequest(BaseModel):
+    norm: Optional[List[float]] = None
+    vector: Optional[List[float]] = None
+    tolerance: Optional[float] = 0.25
+    threshold: Optional[float] = None
 
 # Detector is imported lazily to ensure server boots in <70MB RAM without Render OOM
 try:
@@ -2305,6 +2338,226 @@ async def websocket_live_class(websocket: WebSocket, channel_id: str):
         live_manager.disconnect(channel_id, websocket)
     except Exception:
         live_manager.disconnect(channel_id, websocket)
+
+# ─── REAL-TIME SMART GLOVES SERVICE ──────────────────────────────────────────
+
+GLOVE_GESTURE_TEMPLATES = {
+    "A": {"name": "Letter A", "text": "A", "vector": [0.0, 1.0, 1.0, 1.0, 1.0]},
+    "B": {"name": "Letter B", "text": "B", "vector": [1.0, 0.0, 0.0, 0.0, 0.0]},
+    "C": {"name": "Letter C", "text": "C", "vector": [0.5, 0.5, 0.5, 0.5, 0.5]},
+    "D": {"name": "Letter D", "text": "D", "vector": [1.0, 0.0, 1.0, 1.0, 1.0]},
+    "F": {"name": "Letter F (OK)", "text": "F", "vector": [0.9, 0.9, 0.0, 0.0, 0.0]},
+    "I": {"name": "Letter I", "text": "I", "vector": [1.0, 1.0, 1.0, 1.0, 0.0]},
+    "L": {"name": "Letter L", "text": "L", "vector": [0.0, 0.0, 1.0, 1.0, 1.0]},
+    "O": {"name": "Letter O", "text": "O", "vector": [0.85, 0.85, 0.85, 0.85, 0.85]},
+    "U": {"name": "Letter U", "text": "U", "vector": [1.0, 0.0, 0.0, 1.0, 1.0]},
+    "V": {"name": "Letter V (Peace)", "text": "V", "vector": [1.0, 0.0, 0.0, 1.0, 1.0]},
+    "W": {"name": "Letter W", "text": "W", "vector": [1.0, 0.0, 0.0, 0.0, 1.0]},
+    "Y": {"name": "Letter Y", "text": "Y", "vector": [0.0, 1.0, 1.0, 1.0, 0.0]},
+    "HELLO": {"name": "Hello (Open Palm)", "text": "Hello", "vector": [0.0, 0.0, 0.0, 0.0, 0.0]},
+    "YES": {"name": "Yes (Fist)", "text": "Yes", "vector": [1.0, 1.0, 1.0, 1.0, 1.0]},
+    "NO": {"name": "No (Pinch)", "text": "No", "vector": [0.9, 0.9, 0.9, 0.1, 0.1]},
+    "THANK_YOU": {"name": "Thank You", "text": "Thank you", "vector": [0.15, 0.15, 0.15, 0.15, 0.15]},
+    "WATER": {"name": "Water", "text": "Water", "vector": [1.0, 0.0, 0.0, 0.0, 1.0]},
+    "HELP": {"name": "Help (Thumbs Up)", "text": "Help", "vector": [0.0, 1.0, 1.0, 1.0, 1.0]},
+    "I_LOVE_YOU": {"name": "I Love You", "text": "I Love You", "vector": [0.0, 0.0, 1.0, 1.0, 0.0]},
+    "STOP": {"name": "Stop (Flat)", "text": "Stop", "vector": [0.0, 0.0, 0.0, 0.0, 0.0]},
+}
+
+class SmartGloveManager:
+    def __init__(self):
+        self.connections: List[WebSocket] = []
+        self.latest_reading: Optional[dict] = None
+        self.calibration_profiles: Dict[str, dict] = {}
+        self.last_update_time: Optional[datetime] = None
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.connections.append(ws)
+
+    def disconnect(self, ws: WebSocket):
+        if ws in self.connections:
+            self.connections.remove(ws)
+
+    async def broadcast(self, payload: dict):
+        dead = []
+        for ws in self.connections:
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            if ws in self.connections:
+                self.connections.remove(ws)
+
+glove_manager = SmartGloveManager()
+
+@app.post("/api/smart-gloves/stream")
+async def post_glove_sensor_stream(payload: GloveSensorPayload):
+    now_dt = datetime.now(timezone.utc)
+    reading = {
+        "seq": payload.seq,
+        "thumb": payload.thumb,
+        "index": payload.index,
+        "middle": payload.middle,
+        "ring": payload.ring,
+        "little": payload.little,
+        "norm": payload.norm or [0.0, 0.0, 0.0, 0.0, 0.0],
+        "calibrated": payload.calibrated or False,
+        "device_id": payload.device_id or "esp32-sparsh-glove",
+        "timestamp": now_dt.isoformat()
+    }
+    glove_manager.latest_reading = reading
+    glove_manager.last_update_time = now_dt
+
+    # Broadcast to live UI listeners via WebSocket
+    await glove_manager.broadcast({
+        "type": "SENSOR_TELEMETRY",
+        "data": reading
+    })
+
+    return {"status": "success", "received_seq": payload.seq}
+
+@app.get("/api/smart-gloves/latest")
+async def get_glove_latest():
+    if not glove_manager.latest_reading or not glove_manager.last_update_time:
+        return {
+            "status": "idle",
+            "connected": False,
+            "message": "No active Smart Glove telemetry received yet"
+        }
+
+    age_sec = (datetime.now(timezone.utc) - glove_manager.last_update_time).total_seconds()
+    is_active = age_sec < 4.0 # Active if packet arrived in last 4s
+
+    return {
+        "status": "success",
+        "connected": is_active,
+        "age_seconds": round(age_sec, 2),
+        "reading": glove_manager.latest_reading
+    }
+
+@app.post("/api/smart-gloves/calibration")
+async def save_glove_calibration(req: Request):
+    try:
+        profile_data = await req.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+        
+    profile_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    dev_id = profile_data.get("device_id") or "esp32-sparsh-glove"
+    glove_manager.calibration_profiles[dev_id] = profile_data
+
+    # Persist to Supabase if table exists
+    if supabase:
+        try:
+            supabase.table("glove_calibrations").upsert({
+                "device_id": dev_id,
+                "user_id": profile_data.get("user_id"),
+                "profile_data": profile_data,
+                "updated_at": profile_data["updated_at"]
+            }, on_conflict="device_id").execute()
+        except Exception:
+            pass
+
+    # Broadcast calibration update
+    await glove_manager.broadcast({
+        "type": "CALIBRATION_UPDATED",
+        "profile": profile_data
+    })
+
+    return {"status": "success", "profile": profile_data}
+
+@app.get("/api/smart-gloves/calibration")
+async def get_glove_calibration(device_id: str = "esp32-sparsh-glove"):
+    if device_id in glove_manager.calibration_profiles:
+        return {"status": "success", "profile": glove_manager.calibration_profiles[device_id]}
+
+    if supabase:
+        try:
+            res = supabase.table("glove_calibrations").select("*").eq("device_id", device_id).limit(1).execute()
+            if res.data:
+                return {"status": "success", "profile": res.data[0].get("profile_data")}
+        except Exception:
+            pass
+
+    return {"status": "not_found", "profile": None}
+
+@app.post("/api/smart-gloves/recognize")
+async def recognize_glove_gesture(req: GloveRecognizeRequest):
+    vec = req.norm or req.vector
+    if not vec or len(vec) < 5:
+        raise HTTPException(status_code=400, detail="5 normalized finger values required")
+
+    input_vec = [max(0.0, min(1.0, float(v))) for v in vec[:5]]
+    best_match = None
+    min_dist = float("inf")
+
+    for gid, tpl in GLOVE_GESTURE_TEMPLATES.items():
+        ref_vec = tpl["vector"]
+        # Euclidean distance across 5 finger joints
+        dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(input_vec, ref_vec)))
+        if dist < min_dist:
+            min_dist = dist
+            best_match = (gid, tpl)
+
+    # Max possible distance is sqrt(5*1^2) = ~2.236
+    max_dist = math.sqrt(5.0)
+    confidence = max(0.0, min(1.0, 1.0 - (min_dist / max_dist)))
+
+    eff_tol = req.tolerance or 0.28
+    if req.threshold is not None:
+        eff_tol = 1.0 - req.threshold
+
+    avg_finger_err = min_dist / math.sqrt(5.0)
+    is_recognized = avg_finger_err <= eff_tol and best_match is not None and confidence >= (req.threshold or 0.60)
+
+    if is_recognized and best_match:
+        gid, tpl = best_match
+        return {
+            "status": "recognized",
+            "gesture_id": gid,
+            "name": tpl["name"],
+            "text": tpl["text"],
+            "confidence": round(confidence, 3),
+            "distance": round(min_dist, 3),
+            "isUnknown": False
+        }
+    else:
+        return {
+            "status": "unknown",
+            "gesture_id": None,
+            "name": "Unknown Gesture",
+            "text": "Unknown gesture",
+            "confidence": round(confidence, 3),
+            "distance": round(min_dist, 3),
+            "isUnknown": True
+        }
+
+@app.websocket("/ws/smart-gloves")
+async def websocket_smart_gloves(websocket: WebSocket):
+    await glove_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+                # If ESP32 or client sends telemetry via WebSocket, broadcast to all listeners
+                if payload.get("type") == "sensor_data":
+                    glove_manager.latest_reading = payload
+                    glove_manager.last_update_time = datetime.now(timezone.utc)
+                    await glove_manager.broadcast({
+                        "type": "SENSOR_TELEMETRY",
+                        "data": payload
+                    })
+                else:
+                    await glove_manager.broadcast(payload)
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        glove_manager.disconnect(websocket)
+    except Exception:
+        glove_manager.disconnect(websocket)
 
 
 def free_port(port: int = 8000):

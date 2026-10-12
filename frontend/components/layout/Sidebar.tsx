@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { senseBand, SenseBandStatus } from '@/lib/senseband';
+import { smartGloves, GloveStatus } from '@/lib/smartGloves';
 
 const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> = {
   student: [
@@ -23,6 +24,7 @@ const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> 
     { label: 'Progress', href: '/student/progress', icon: '📈' },
     { label: 'Rewards', href: '/student/rewards', icon: '🏆' },
     { label: 'SenseBand', href: '/student/senseband', icon: '📳' },
+    { label: 'Smart Gloves', href: '/student/smart-gloves', icon: '🧤' },
   ],
   teacher: [
     { label: 'Dashboard', href: '/teacher', icon: '🏠' },
@@ -64,9 +66,15 @@ interface SidebarContentProps {
 
 function SidebarContent({ role, userName, pathname, navItems, onSignOut }: SidebarContentProps) {
   const [sbStatus, setSbStatus] = useState<SenseBandStatus>('disconnected');
+  const [gloveStatus, setGloveStatus] = useState<GloveStatus>('disconnected');
+
   useEffect(() => {
-    const unsub = senseBand.onStatus(s => setSbStatus(s));
-    return () => { unsub(); };
+    const unsubSb = senseBand.onStatus(s => setSbStatus(s));
+    const unsubGlove = smartGloves.onStatus(s => setGloveStatus(s));
+    return () => {
+      unsubSb();
+      unsubGlove();
+    };
   }, []);
   return (
     <div className="flex flex-col h-full py-6 px-4">
@@ -116,6 +124,9 @@ function SidebarContent({ role, userName, pathname, navItems, onSignOut }: Sideb
                 )}
                 {item.label === 'SenseBand' && (
                   <span className={`ml-auto w-2 h-2 rounded-full ${sbStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-white/20'}`} />
+                )}
+                {item.label === 'Smart Gloves' && (
+                  <span className={`ml-auto w-2 h-2 rounded-full ${gloveStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : gloveStatus === 'simulated' ? 'bg-amber-400' : 'bg-white/20'}`} />
                 )}
               </button>
             </Link>

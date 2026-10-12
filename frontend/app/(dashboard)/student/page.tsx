@@ -342,6 +342,13 @@ export default function StudentDashboard() {
               <span>RFID Card</span>
             </button>
           </Link>
+
+          <Link href="/student/smart-gloves" onClick={vibrate}>
+            <button className="w-full py-4 px-2 bg-gradient-to-b from-indigo-500 to-purple-600 text-white font-bold rounded-2xl border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all text-xs shadow-sm flex flex-col items-center gap-1">
+              <span className="text-2xl">🧤</span>
+              <span>Smart Gloves</span>
+            </button>
+          </Link>
         </div>
       </div>
     </div>
