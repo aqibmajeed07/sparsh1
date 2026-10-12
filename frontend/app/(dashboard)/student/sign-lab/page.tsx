@@ -17,38 +17,117 @@ const SignAvatarOverlay = dynamic(
   }
 );
 
-const ISL_SIGNS = [
-  { word: 'hello', display: 'Hello', hindi: 'नमस्ते', category: 'common', difficulty: 'beginner', mastered: true },
+export interface IslSignItem {
+  word: string;
+  display: string;
+  hindi: string;
+  category: 'common' | 'classroom' | 'science' | 'emergency' | 'questions' | 'academic';
+  difficulty: 'beginner' | 'intermediate' | 'difficult';
+  mastered: boolean;
+}
+
+const ISL_SIGNS: IslSignItem[] = [
+  // ── Difficult & Advanced Academic Signs ──────────────────────────────
+  { word: 'experiment', display: 'Experiment', hindi: 'प्रयोग', category: 'science', difficulty: 'difficult', mastered: false },
+  { word: 'atom', display: 'Atom', hindi: 'परमाणु', category: 'science', difficulty: 'difficult', mastered: false },
+  { word: 'gravity', display: 'Gravity', hindi: 'गुरुत्वाकर्षण', category: 'science', difficulty: 'difficult', mastered: false },
+  { word: 'mathematics', display: 'Mathematics', hindi: 'गणित', category: 'science', difficulty: 'difficult', mastered: false },
+  { word: 'technology', display: 'Technology', hindi: 'प्रौद्योगिकी', category: 'science', difficulty: 'difficult', mastered: false },
+  { word: 'computer', display: 'Computer', hindi: 'कंप्यूटर', category: 'science', difficulty: 'intermediate', mastered: false },
+  { word: 'environment', display: 'Environment', hindi: 'पर्यावरण', category: 'science', difficulty: 'difficult', mastered: false },
+  { word: 'research', display: 'Research', hindi: 'अनुसंधान', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'constitution', display: 'Constitution', hindi: 'संविधान', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'democracy', display: 'Democracy', hindi: 'लोकतंत्र', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'difficult', display: 'Difficult', hindi: 'कठिन', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'important', display: 'Important', hindi: 'महत्वपूर्ण', category: 'academic', difficulty: 'intermediate', mastered: false },
+  { word: 'concentrate', display: 'Concentrate', hindi: 'एकाग्रता', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'focus', display: 'Focus', hindi: 'ध्यान देना', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'remember', display: 'Remember', hindi: 'याद रखना', category: 'academic', difficulty: 'intermediate', mastered: false },
+  { word: 'communication', display: 'Communication', hindi: 'संचार', category: 'academic', difficulty: 'difficult', mastered: false },
+  { word: 'success', display: 'Success', hindi: 'सफलता', category: 'academic', difficulty: 'intermediate', mastered: true },
+
+  // ── Critical & Useful Emergency / Medical Signs ────────────────────
+  { word: 'emergency', display: 'Emergency', hindi: 'आपातकाल', category: 'emergency', difficulty: 'difficult', mastered: false },
+  { word: 'danger', display: 'Danger', hindi: 'ख़तरा', category: 'emergency', difficulty: 'difficult', mastered: false },
+  { word: 'hospital', display: 'Hospital', hindi: 'अस्पताल', category: 'emergency', difficulty: 'intermediate', mastered: false },
+  { word: 'doctor', display: 'Doctor', hindi: 'चिकित्सक', category: 'emergency', difficulty: 'intermediate', mastered: false },
+  { word: 'medicine', display: 'Medicine', hindi: 'दवाई', category: 'emergency', difficulty: 'intermediate', mastered: false },
+  { word: 'pain', display: 'Pain', hindi: 'दर्द', category: 'emergency', difficulty: 'intermediate', mastered: false },
+  { word: 'police', display: 'Police', hindi: 'पुलिस', category: 'emergency', difficulty: 'intermediate', mastered: false },
+
+  // ── Highly Useful Conversational & Question Signs ───────────────────
+  { word: 'where', display: 'Where', hindi: 'कहाँ', category: 'questions', difficulty: 'intermediate', mastered: false },
+  { word: 'when', display: 'When', hindi: 'कब', category: 'questions', difficulty: 'intermediate', mastered: false },
+  { word: 'why', display: 'Why', hindi: 'क्यों', category: 'questions', difficulty: 'difficult', mastered: false },
+  { word: 'how', display: 'How', hindi: 'कैसे', category: 'questions', difficulty: 'difficult', mastered: false },
+  { word: 'question', display: 'Question', hindi: 'सवाल', category: 'questions', difficulty: 'intermediate', mastered: false },
+  { word: 'answer', display: 'Answer', hindi: 'जवाब', category: 'questions', difficulty: 'intermediate', mastered: false },
+  { word: 'time', display: 'Time', hindi: 'समय', category: 'questions', difficulty: 'intermediate', mastered: false },
+
+  // ── Classroom & Education Signs ────────────────────────────────────
+  { word: 'book', display: 'Book', hindi: 'किताब', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'open', display: 'Open', hindi: 'खोलें', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'teacher', display: 'Teacher', hindi: 'शिक्षक', category: 'classroom', difficulty: 'beginner', mastered: true },
+  { word: 'student', display: 'Student', hindi: 'विद्यार्थी', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'class', display: 'Class', hindi: 'कक्षा', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'lesson', display: 'Lesson', hindi: 'पाठ', category: 'classroom', difficulty: 'intermediate', mastered: false },
+  { word: 'read', display: 'Read', hindi: 'पढ़ना', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'write', display: 'Write', hindi: 'लिखना', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'learn', display: 'Learn', hindi: 'सीखना', category: 'classroom', difficulty: 'beginner', mastered: true },
+  { word: 'attention', display: 'Attention', hindi: 'ध्यान', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'school', display: 'School', hindi: 'स्कूल', category: 'classroom', difficulty: 'beginner', mastered: false },
+  { word: 'braille', display: 'Braille', hindi: 'ब्रेल लिपि', category: 'classroom', difficulty: 'intermediate', mastered: false },
+  { word: 'exam', display: 'Exam', hindi: 'परीक्षा', category: 'classroom', difficulty: 'intermediate', mastered: false },
+  { word: 'understand', display: 'Understand', hindi: 'समझना', category: 'classroom', difficulty: 'intermediate', mastered: false },
+
+  // ── Common Vocabulary & Social Signs ───────────────────────────────
+  { word: 'hello', display: 'Hello / Namaste', hindi: 'नमस्ते', category: 'common', difficulty: 'beginner', mastered: true },
   { word: 'thank', display: 'Thank You', hindi: 'धन्यवाद', category: 'common', difficulty: 'beginner', mastered: true },
   { word: 'please', display: 'Please', hindi: 'कृपया', category: 'common', difficulty: 'beginner', mastered: false },
   { word: 'welcome', display: 'Welcome', hindi: 'स्वागत', category: 'common', difficulty: 'beginner', mastered: false },
   { word: 'yes', display: 'Yes', hindi: 'हाँ', category: 'common', difficulty: 'beginner', mastered: true },
   { word: 'no', display: 'No', hindi: 'नहीं', category: 'common', difficulty: 'beginner', mastered: false },
   { word: 'you', display: 'You', hindi: 'आप', category: 'common', difficulty: 'beginner', mastered: true },
-  { word: 'understand', display: 'Understand', hindi: 'समझना', category: 'common', difficulty: 'intermediate', mastered: false },
-  { word: 'attention', display: 'Attention', hindi: 'ध्यान', category: 'common', difficulty: 'beginner', mastered: false },
-  { word: 'book', display: 'Book', hindi: 'किताब', category: 'classroom', difficulty: 'beginner', mastered: false },
-  { word: 'open', display: 'Open', hindi: 'खोलें', category: 'classroom', difficulty: 'beginner', mastered: false },
-  { word: 'teacher', display: 'Teacher', hindi: 'शिक्षक', category: 'classroom', difficulty: 'beginner', mastered: true },
-  { word: 'student', display: 'Student', hindi: 'विद्यार्थी', category: 'classroom', difficulty: 'beginner', mastered: false },
-  { word: 'class', display: 'Class', hindi: 'कक्षा', category: 'classroom', difficulty: 'beginner', mastered: false },
-  { word: 'question', display: 'Question', hindi: 'सवाल', category: 'classroom', difficulty: 'intermediate', mastered: false },
-  { word: 'answer', display: 'Answer', hindi: 'जवाब', category: 'classroom', difficulty: 'intermediate', mastered: false },
+  { word: 'good', display: 'Good', hindi: 'अच्छा', category: 'common', difficulty: 'beginner', mastered: true },
+  { word: 'bad', display: 'Bad', hindi: 'बुरा', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'come', display: 'Come', hindi: 'आओ', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'go', display: 'Go', hindi: 'जाओ', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'stop', display: 'Stop', hindi: 'रुको', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'help', display: 'Help', hindi: 'मदद', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'love', display: 'Love', hindi: 'प्रेम', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'happy', display: 'Happy', hindi: 'खुश', category: 'common', difficulty: 'beginner', mastered: true },
+  { word: 'sorry', display: 'Sorry', hindi: 'माफ़ करना', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'water', display: 'Water', hindi: 'पानी', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'eat', display: 'Eat', hindi: 'खाना', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'food', display: 'Food', hindi: 'भोजन', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'friend', display: 'Friend', hindi: 'मित्र', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'family', display: 'Family', hindi: 'परिवार', category: 'common', difficulty: 'beginner', mastered: false },
+  { word: 'peace', display: 'Peace', hindi: 'शांति', category: 'common', difficulty: 'intermediate', mastered: false },
 ];
 
-const CATEGORIES = ['All', 'common', 'classroom'];
+const CATEGORIES = ['All', 'science', 'academic', 'emergency', 'questions', 'classroom', 'common'] as const;
 type TabId = 'dictionary' | 'document' | 'live-translator' | 'media';
 
 export default function SignLabPage() {
   // ── Dictionary tab state ─────────────────────────────────────
   const [selectedSign, setSelectedSign] = useState(ISL_SIGNS[0]);
-  const [category, setCategory] = useState('All');
+  const [category, setCategory] = useState<string>('All');
+  const [difficultyFilter, setDifficultyFilter] = useState<'All' | 'beginner' | 'intermediate' | 'difficult'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [avatarQueue, setAvatarQueue] = useState<string[]>([]);
   const [masteredWords, setMasteredWords] = useState<Set<string>>(
     new Set(ISL_SIGNS.filter(s => s.mastered).map(s => s.word))
   );
   const [celebration, setCelebration] = useState(false);
-  const filtered = ISL_SIGNS.filter(s => category === 'All' || s.category === category);
+  const filtered = ISL_SIGNS.filter(s => {
+    const matchCat = category === 'All' || s.category === category;
+    const matchDiff = difficultyFilter === 'All' || s.difficulty === difficultyFilter;
+    const matchSearch = !searchQuery.trim() || 
+      s.display.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      s.hindi.includes(searchQuery) || 
+      s.word.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCat && matchDiff && matchSearch;
+  });
   const mastered = masteredWords.size;
 
   const markMastered = useCallback(() => {
@@ -543,33 +622,108 @@ export default function SignLabPage() {
           {/* Right — Sign Dictionary */}
           <div className="space-y-4">
             <div className="glass-card p-4">
-              <h3 className="text-white font-semibold mb-3">ISL Dictionary</h3>
-              <div className="flex flex-wrap gap-1.5 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-white font-semibold">ISL 3D Dictionary</h3>
+                  <p className="text-white/40 text-xs">{filtered.length} of {ISL_SIGNS.length} signs</p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-[#6C63FF]/20 text-[#6C63FF] text-[10px] font-bold uppercase tracking-wider border border-[#6C63FF]/30">
+                  Interactive
+                </span>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search signs (e.g. Science, Doctor, क्यों)..."
+                  className="w-full px-3 py-2 pl-9 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-white/30 focus:outline-none focus:border-[#6C63FF] transition"
+                />
+                <span className="absolute left-3 top-2.5 text-white/30 text-xs">🔍</span>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2.5 text-white/40 hover:text-white text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex flex-wrap gap-1 mb-2.5">
                 {CATEGORIES.map(cat => (
                   <button key={cat} onClick={() => setCategory(cat)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${category === cat ? 'bg-[#6C63FF] text-white' : 'bg-white/5 text-white/50 hover:text-white'
-                      }`}>
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium capitalize transition ${
+                      category === cat ? 'bg-[#6C63FF] text-white shadow-sm' : 'bg-white/5 text-white/50 hover:text-white'
+                    }`}>
                     {cat}
                   </button>
                 ))}
               </div>
-              <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
-                {filtered.map((sign, i) => (
-                  <button key={i} onClick={() => selectSign(sign)}
-                    className={`w-full text-left p-3 rounded-xl transition flex items-center justify-between group ${selectedSign.word === sign.word
-                        ? 'bg-[#6C63FF]/20 border border-[#6C63FF]/30'
-                        : 'bg-white/5 hover:bg-white/10'
-                      }`}>
-                    <div>
-                      <p className="text-white text-sm font-medium">{sign.display}</p>
-                      <p className="text-white/40 text-xs">{sign.hindi}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {sign.mastered && <span className="text-[#00C9A7] text-xs">✓</span>}
-                      <span className="text-white/20 text-xs group-hover:text-[#6C63FF] transition">▶</span>
-                    </div>
+
+              {/* Difficulty Level Filter */}
+              <div className="flex items-center gap-1 mb-3 pt-1 border-t border-white/5">
+                <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold mr-1">Level:</span>
+                {(['All', 'beginner', 'intermediate', 'difficult'] as const).map(diff => (
+                  <button
+                    key={diff}
+                    onClick={() => setDifficultyFilter(diff)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize transition ${
+                      difficultyFilter === diff
+                        ? diff === 'difficult'
+                          ? 'bg-rose-500 text-white shadow-sm'
+                          : diff === 'intermediate'
+                          ? 'bg-amber-500 text-white shadow-sm'
+                          : diff === 'beginner'
+                          ? 'bg-emerald-500 text-white shadow-sm'
+                          : 'bg-white/20 text-white'
+                        : 'bg-white/5 text-white/40 hover:text-white'
+                    }`}
+                  >
+                    {diff}
                   </button>
                 ))}
+              </div>
+
+              {/* Signs List */}
+              <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+                {filtered.length === 0 ? (
+                  <div className="text-center py-8 text-white/40 text-xs">
+                    No signs found matching &quot;{searchQuery}&quot;
+                  </div>
+                ) : (
+                  filtered.map((sign, i) => (
+                    <button key={i} onClick={() => selectSign(sign)}
+                      className={`w-full text-left p-2.5 rounded-xl transition flex items-center justify-between group ${
+                        selectedSign.word === sign.word
+                          ? 'bg-[#6C63FF]/20 border border-[#6C63FF]/40 shadow-inner'
+                          : 'bg-white/5 hover:bg-white/10'
+                      }`}>
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-white text-xs font-semibold truncate">{sign.display}</p>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
+                            sign.difficulty === 'difficult'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : sign.difficulty === 'intermediate'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {sign.difficulty}
+                          </span>
+                        </div>
+                        <p className="text-white/40 text-[11px] truncate">{sign.hindi}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {masteredWords.has(sign.word) && <span className="text-[#00C9A7] text-xs">✓</span>}
+                        <span className="text-white/20 text-xs group-hover:text-[#6C63FF] transition">▶</span>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
