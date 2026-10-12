@@ -149,7 +149,70 @@ export default function AIVoiceAssistant() {
             }
         }
 
-        // 2. Fallback: If not a navigation route, query SPARSH AI Tutor to answer question directly!
+        // 1.5 Check for Smart Glasses / Vision commands ("Hello Sparsh", "What do you see", "Describe what is in front of me")
+        const isGlassesVision =
+            text === 'hello sparsh' ||
+            text === 'hey sparsh' ||
+            text === 'hi sparsh' ||
+            text === 'sparsh' ||
+            text.includes('smart glass') ||
+            text.includes('smart glasses') ||
+            text.includes('what do you see') ||
+            text.includes('what is in front of me') ||
+            text.includes('describe what is in front of me') ||
+            text.includes('describe scene') ||
+            text.includes('look in front of me') ||
+            text.includes('look through glasses') ||
+            text.includes('tell me what is in front of me') ||
+            text.includes('read this page') ||
+            text.includes('read page');
+
+        if (isGlassesVision) {
+            const isOcr = text.includes('read');
+            speak(isOcr ? 'Reading page through your glasses now.' : 'Looking through your smart glasses now.');
+            setIsProcessing(true);
+            setActiveToast({
+                message: `Voice: "${rawText}"`,
+                target: 'Smart Glasses Capturing & Analyzing...',
+                type: 'info'
+            });
+
+            try {
+                const res = await fetch('/api/glasses/vision', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: isOcr 
+                            ? 'Transcribe and read all visible text printed or handwritten on this page in front of me.'
+                            : 'Describe what is in front of me clearly and concisely for an inclusive learner.',
+                        mode: isOcr ? 'ocr' : 'describe'
+                    }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const desc = data.description || data.text || 'I could not identify the scene.';
+                    setAiResponse(desc);
+                    speak(desc);
+                    setActiveToast({
+                        message: 'Smart Glasses AI',
+                        target: desc.length > 80 ? desc.substring(0, 80) + '...' : desc,
+                        type: 'success'
+                    });
+                    return true;
+                } else {
+                    speak('Smart glasses camera timed out or is unreachable.');
+                }
+            } catch (err) {
+                speak('Smart glasses camera is not connected.');
+            } finally {
+                setIsProcessing(false);
+                setTimeout(() => setActiveToast(null), 5000);
+            }
+            return true;
+        }
+
+        // 2. Fallback: If not a navigation or glasses command, query SPARSH AI Tutor to answer question directly!
         setIsProcessing(true);
         setActiveToast({
             message: `Asking SPARSH AI...`,

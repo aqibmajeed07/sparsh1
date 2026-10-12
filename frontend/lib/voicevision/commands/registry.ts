@@ -371,7 +371,26 @@ export class CommandRegistry {
     // Smart Glasses Camera: Describe Scene
     this.registerGlobalCommand({
       id: 'glasses-describe',
-      phrases: ['describe what is in front of me', 'what is in front of me', 'describe scene', 'what do you see', 'look in front of me'],
+      phrases: [
+        'hello sparsh',
+        'hey sparsh',
+        'hi sparsh',
+        'sparsh',
+        'ok sparsh',
+        'smart glasses',
+        'glasses',
+        'describe what is in front of me',
+        'what is in front of me',
+        'describe scene',
+        'what do you see',
+        'look in front of me',
+        'look through glasses',
+        'see for me',
+        'tell me what is in front of me',
+        'take photo',
+        'snap photo',
+        'what am i looking at',
+      ],
       description: 'Captures camera view from glasses and describes the scene',
       scope: 'global',
       handler: async (ctx) => {
