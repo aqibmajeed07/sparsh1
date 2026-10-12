@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import SparshLogo from '@/components/ui/SparshLogo';
 
 const PLANS = [
   {
@@ -115,10 +116,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-white/10"
         style={{ background: 'rgba(15,12,41,0.85)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-bold">S</div>
-            <span className="text-white font-bold text-xl tracking-tight">SPARSH</span>
-          </div>
+          <SparshLogo size="sm" href="/" showTagline={false} />
           <div className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-white/60 hover:text-white text-sm transition">Features</a>
             <a href="#pricing" className="text-white/60 hover:text-white text-sm transition">Pricing</a>
@@ -288,10 +286,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-white/10 py-10 px-4 sm:px-6 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-bold text-sm">S</div>
-            <span className="text-white font-bold">SPARSH</span>
-          </div>
+          <SparshLogo size="sm" href="/" showTagline={false} />
           <p className="text-white/30 text-sm text-center">
             © 2026 Sparsh Education Pvt. Ltd. • Built for India&apos;s 2.68 crore persons with disabilities
           </p>

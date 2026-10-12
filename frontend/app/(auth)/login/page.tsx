@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import Image from 'next/image';
+import SparshLogo from '@/components/ui/SparshLogo';
 import {
   Mail,
   Lock,
@@ -147,22 +148,15 @@ export default function LoginPage() {
 
         {/* Top Header / Emblem */}
         <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-extrabold text-xl shadow-lg">
-              S
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-white font-black text-lg tracking-tight">SPARSH</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  स्पर्श
-                </span>
-              </div>
+          <SparshLogo
+            size="lg"
+            href="/"
+            subtitle={
               <p className="text-slate-300 text-[11px] font-medium tracking-wide">
                 National Inclusive Education Initiative
               </p>
-            </div>
-          </div>
+            }
+          />
 
           <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 border border-white/10 text-[11px] text-slate-300 font-medium backdrop-blur-md">
             <Award className="w-3.5 h-3.5 text-[#00C9A7]" />

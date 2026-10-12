@@ -16,21 +16,30 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/sparsh-logo.png', type: 'image/png' },
       { url: '/favicon.ico', sizes: 'any' },
     ],
-    apple: '/icons/icon-192x192.png',
-    shortcut: '/favicon.ico',
+    apple: '/sparsh-logo.png',
+    shortcut: '/favicon.svg',
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Sparsh',
+    title: 'SPARSH',
   },
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
   openGraph: {
-    title: 'Sparsh — Accessible Education Platform',
-    description: 'AI-powered inclusive education for India\'s 2.68 crore persons with disabilities.',
+    title: 'SPARSH — AI-Powered Inclusive Education Platform',
+    description: 'AI-powered inclusive education with Smart Gloves, ISL avatar, live captions, TTS, and Braille support.',
     type: 'website',
+    images: [
+      {
+        url: '/sparsh-logo.png',
+        width: 512,
+        height: 512,
+        alt: 'SPARSH Official App Logo',
+      },
+    ],
   },
 };
 

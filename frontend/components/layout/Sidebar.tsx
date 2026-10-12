@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { senseBand, SenseBandStatus } from '@/lib/senseband';
 import { smartGloves, GloveStatus } from '@/lib/smartGloves';
+import SparshLogo from '@/components/ui/SparshLogo';
 
 const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> = {
   student: [
@@ -80,15 +81,15 @@ function SidebarContent({ role, userName, pathname, navItems, onSignOut }: Sideb
     <div className="flex flex-col h-full py-6 px-4">
       {/* Logo */}
       <div className="flex items-center justify-between px-2 mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#00C9A7] flex items-center justify-center text-white font-bold text-lg shrink-0">
-            S
-          </div>
-          <div>
-            <span className="gradient-text font-bold text-lg block leading-none">SPARSH</span>
-            <span className="text-white/40 text-[10px] capitalize">{role.replace('_', ' ')}</span>
-          </div>
-        </div>
+        <SparshLogo
+          size="md"
+          href={role ? `/${role.replace('_', '-')}` : '/'}
+          subtitle={
+            <span className="text-white/40 text-[10px] capitalize font-medium">
+              {role.replace('_', ' ')}
+            </span>
+          }
+        />
         <button
           onClick={onSignOut}
           title="Sign Out"
