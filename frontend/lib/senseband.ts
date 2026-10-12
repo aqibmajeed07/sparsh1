@@ -123,7 +123,7 @@ class SenseBandManager {
     }
 
     // ── Connect via BLE ──────────────────────────────────────────────────────
-    async connect(): Promise<boolean> {
+    async connect(forceAllDevices: boolean = false): Promise<boolean> {
         if (!this.isBluetoothSupported) {
             this.addLog('❌ Web Bluetooth not supported. Use Chrome or Edge.');
             this.setStatus('error');
@@ -132,18 +132,31 @@ class SenseBandManager {
 
         try {
             this.setStatus('searching');
-            this.addLog('🔍 Opening Bluetooth device picker…');
+            this.addLog(forceAllDevices ? '🔍 Opening Bluetooth picker (scanning all devices)…' : '🔍 Opening Bluetooth device picker…');
+
+            const requestOptions: any = forceAllDevices
+                ? {
+                    acceptAllDevices: true,
+                    optionalServices: [SERVICE_UUID],
+                }
+                : {
+                    filters: [
+                        { name: 'Sparsh SenseBand' },
+                        { name: 'SparshSenseBand' },
+                        { namePrefix: 'Sparsh' },
+                        { namePrefix: 'Sense' },
+                        { services: [SERVICE_UUID] },
+                    ],
+                    optionalServices: [SERVICE_UUID],
+                };
 
             // Show the browser's native Bluetooth pair dialog
-            this.device = await (navigator as any).bluetooth.requestDevice({
-                filters: [{ name: 'Sparsh SenseBand' }],
-                optionalServices: [SERVICE_UUID],
-            });
+            this.device = await (navigator as any).bluetooth.requestDevice(requestOptions);
 
             this.deviceId = this.device!.id || 'BLE-DEVICE';
             this.firmwareVersion = 'SB-v2.0';
 
-            this.addLog(`📡 Found: ${this.device!.name} — connecting…`);
+            this.addLog(`📡 Found: ${this.device!.name || 'SenseBand'} — connecting…`);
 
             // Listen for disconnect events
             this.device!.addEventListener('gattserverdisconnected', () => {
@@ -153,7 +166,7 @@ class SenseBandManager {
                 this.characteristic = null;
             });
 
-            // Connect to GATT server on the ESP32-C3
+            // Connect to GATT server on the ESP32
             this.server = await this.device!.gatt!.connect();
             this.addLog('✅ GATT server connected.');
 
@@ -184,7 +197,7 @@ class SenseBandManager {
             }
 
             this.setStatus('connected');
-            this.addLog(`🎉 SenseBand connected! Device: ${this.device!.name}`);
+            this.addLog(`🎉 SenseBand connected! Device: ${this.device!.name || 'Sparsh SenseBand'}`);
 
             // Tell the band it's connected
             await this.send('CONNECTED');
@@ -201,7 +214,9 @@ class SenseBandManager {
 
         } catch (err: any) {
             if (err?.name === 'NotFoundError') {
-                this.addLog('ℹ️ No device selected — pair cancelled.');
+                this.addLog('ℹ️ No device chosen. Click "Scan All Devices" if your ESP32 name is different.');
+            } else if (err?.name === 'SecurityError') {
+                this.addLog('🔒 Bluetooth permission denied. Ensure Web Bluetooth is allowed in browser settings.');
             } else {
                 this.addLog(`❌ Connection failed: ${err?.message ?? err}`);
             }

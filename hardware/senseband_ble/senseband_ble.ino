@@ -1,20 +1,22 @@
 /*
  * ╔══════════════════════════════════════════════════════════════════════╗
- * ║           SPARSH SENSEBAND — ESP32 BLE Firmware v1.0               ║
- * ║        AI Powered Haptic Learning Companion                         ║
+ * ║           SPARSH SENSEBAND — ESP32 BLE Firmware v2.0               ║
+ * ║        AI Powered Haptic & Audio Learning Companion                 ║
  * ╠══════════════════════════════════════════════════════════════════════╣
  * ║  HARDWARE REQUIRED:                                                 ║
- * ║    • ESP32 DevKit v1 (any variant)                                  ║
+ * ║    • ESP32 DevKit v1 / ESP32-WROOM-32 (any variant)                 ║
  * ║    • Coin Vibration Motor (ERM type, 3V)                            ║
  * ║    • NPN Transistor — BC547 or 2N2222 or S8050                     ║
  * ║    • 1× 100Ω resistor (base resistor)                              ║
  * ║    • 1× 1N4007 flyback diode (motor protection)                    ║
- * ║    • 1× LED (any color) + 220Ω resistor (status indicator)         ║
+ * ║    • 1× Active Buzzer (5V / 3.3V) on GPIO 2                         ║
  * ║    • USB cable + 5V power (USB or LiPo)                            ║
  * ╠══════════════════════════════════════════════════════════════════════╣
  * ║  WIRING DIAGRAM:                                                    ║
  * ║                                                                     ║
- * ║   ESP32 GPIO 2  ──[220Ω]──  LED (+) ── GND  (Blue status LED)      ║
+ * ║   ESP32 GPIO 2  ──────────── Buzzer (+) Positive / Signal pin       ║
+ * ║   ESP32 GND     ──────────── Buzzer (–) Ground                      ║
+ * ║                                                                     ║
  * ║   ESP32 GPIO 4  ──[100Ω]──  Base of BC547 NPN Transistor           ║
  * ║                              Collector ── Motor (–)                 ║
  * ║                              Emitter   ── GND                       ║
@@ -26,12 +28,12 @@
  * ╠══════════════════════════════════════════════════════════════════════╣
  * ║  BLE SERVICE UUID:    4fafc201-1fb5-459e-8fcc-c5c9c331914b         ║
  * ║  CHARACTERISTIC UUID: beb5483e-36e1-4688-b7f5-ea07361b26a8         ║
- * ║  Device Name:         SparshSenseBand                               ║
+ * ║  Device Name:         Sparsh SenseBand                              ║
  * ║                                                                     ║
  * ║  Supported commands (sent as plain text strings over BLE):          ║
  * ║    CONNECTED, AI_READY, CORRECT, WRONG, LESSON_COMPLETE,            ║
  * ║    ASSIGNMENT, MESSAGE, NAV_NEXT, NAV_PREVIOUS, NAV_MENU,           ║
- * ║    EMERGENCY, TEST                                                  ║
+ * ║    EMERGENCY, TEST, BATTERY_REQUEST                                 ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  *
  * LIBRARIES NEEDED (install via Arduino Library Manager):
@@ -51,9 +53,9 @@
 #include <BLE2902.h>
 
 // ─── Pin Definitions ─────────────────────────────────────────────────────────
-#define MOTOR_PIN   4   // GPIO4 — connected to transistor base via 100Ω resistor
-#define LED_PIN     2   // GPIO2 — onboard LED / status LED (active-high on most boards)
-#define BATT_ADC_PIN 34 // GPIO34 — battery voltage divider (ADC1_CH6)
+#define MOTOR_PIN    4   // GPIO4 — connected to transistor base via 100Ω resistor
+#define BUZZER_PIN   2   // GPIO2 — Active / Piezo Buzzer (+) signal pin
+#define BATT_ADC_PIN 34  // GPIO34 — battery voltage divider (ADC1_CH6)
 
 // ─── BLE UUIDs ────────────────────────────────────────────────────────────────
 // These MUST match exactly what senseband.ts uses in the browser
@@ -68,7 +70,7 @@ int readBatteryPercent() {
     delayMicroseconds(300);
   }
   uint32_t raw = sum / 16;
-  if (raw < 100) return 100; // default safe fallback
+  if (raw < 100) return 100; // default safe fallback if no voltage divider connected
   float adcMv = (raw / 4095.0f) * 3300.0f;
   float battMv = adcMv * 2.0f; // 100k/100k voltage divider
   int pct = (int)(((battMv - 3300.0f) / (4200.0f - 3300.0f)) * 100.0f);
@@ -83,8 +85,27 @@ BLECharacteristic* pCharacteristic = nullptr;
 bool               deviceConnected = false;
 bool               oldConnected    = false;
 
-// ─── Vibration helpers ────────────────────────────────────────────────────────
+// ─── Buzzer helpers ───────────────────────────────────────────────────────────
+void buzzerOn()  { digitalWrite(BUZZER_PIN, HIGH); }
+void buzzerOff() { digitalWrite(BUZZER_PIN, LOW);  }
 
+void beep(uint32_t durationMs, uint32_t pauseAfterMs = 60) {
+  buzzerOn();
+  delay(durationMs);
+  buzzerOff();
+  delay(pauseAfterMs);
+}
+
+void beepTimes(int times, uint32_t onMs = 90, uint32_t offMs = 70) {
+  for (int i = 0; i < times; i++) {
+    buzzerOn();
+    delay(onMs);
+    buzzerOff();
+    delay(offMs);
+  }
+}
+
+// ─── Vibration helpers ────────────────────────────────────────────────────────
 void motorOn()  { digitalWrite(MOTOR_PIN, HIGH); }
 void motorOff() { digitalWrite(MOTOR_PIN, LOW);  }
 
@@ -100,7 +121,7 @@ void pulse(uint32_t durationMs, uint32_t pauseAfterMs = 80) {
 void shortPulse()     { pulse(100, 100); }
 // Long pulse  = 500 ms
 void longPulse()      { pulse(500, 120); }
-// Micro pulse = 40 ms (for rain effect)
+// Micro pulse = 40 ms (for navigation / rain effect)
 void microPulse()     { pulse(40,  60);  }
 
 // ─── All haptic command patterns ─────────────────────────────────────────────
@@ -168,7 +189,7 @@ void haptic_NAV_MENU() {
 }
 
 void haptic_EMERGENCY() {
-  // ████████ continuous for 2 seconds — emergency alert
+  // Continuous emergency alert
   motorOn();
   delay(2000);
   motorOff();
@@ -179,17 +200,6 @@ void haptic_TEST() {
   motorOn();
   delay(1000);
   motorOff();
-}
-
-// ─── LED blink helpers ────────────────────────────────────────────────────────
-
-void blinkLED(int times, uint32_t onMs = 150, uint32_t offMs = 150) {
-  for (int i = 0; i < times; i++) {
-    digitalWrite(LED_PIN, HIGH);
-    delay(onMs);
-    digitalWrite(LED_PIN, LOW);
-    delay(offMs);
-  }
 }
 
 void sendBatteryResponse() {
@@ -208,24 +218,24 @@ void dispatchCommand(String cmd) {
   Serial.print("[SenseBand] CMD: ");
   Serial.println(cmd);
 
-  if      (cmd == "CONNECTED")       { haptic_CONNECTED();       blinkLED(1); }
-  else if (cmd == "AI_READY")        { haptic_AI_READY();        blinkLED(2); }
-  else if (cmd == "CORRECT")         { haptic_CORRECT();         blinkLED(3); }
-  else if (cmd == "WRONG")           { haptic_WRONG();           blinkLED(1, 400, 0); }
-  else if (cmd == "LESSON_COMPLETE") { haptic_LESSON_COMPLETE(); blinkLED(3, 200, 100); }
-  else if (cmd == "ASSIGNMENT")      { haptic_ASSIGNMENT();      blinkLED(2, 300, 150); }
-  else if (cmd == "MESSAGE")         { haptic_MESSAGE();         blinkLED(4, 80, 80); }
-  else if (cmd == "NAV_NEXT")        { haptic_NAV_NEXT();        /* no LED blink for nav */ }
-  else if (cmd == "NAV_PREVIOUS")    { haptic_NAV_PREVIOUS();    }
-  else if (cmd == "NAV_MENU")        { haptic_NAV_MENU();        }
-  else if (cmd == "EMERGENCY")       { haptic_EMERGENCY();       blinkLED(10, 100, 50); }
-  else if (cmd == "TEST")            { haptic_TEST();            blinkLED(3, 200, 200); }
+  if      (cmd == "CONNECTED")       { haptic_CONNECTED();       beepTimes(1, 100, 50); }
+  else if (cmd == "AI_READY")        { haptic_AI_READY();        beepTimes(2, 80, 60); }
+  else if (cmd == "CORRECT")         { haptic_CORRECT();         beepTimes(3, 70, 50); }
+  else if (cmd == "WRONG")           { haptic_WRONG();           beep(350, 0); }
+  else if (cmd == "LESSON_COMPLETE") { haptic_LESSON_COMPLETE(); beepTimes(3, 100, 60); }
+  else if (cmd == "ASSIGNMENT")      { haptic_ASSIGNMENT();      beepTimes(2, 180, 80); }
+  else if (cmd == "MESSAGE")         { haptic_MESSAGE();         beepTimes(4, 50, 50); }
+  else if (cmd == "NAV_NEXT")        { haptic_NAV_NEXT();        beep(40, 20); }
+  else if (cmd == "NAV_PREVIOUS")    { haptic_NAV_PREVIOUS();    beep(40, 20); }
+  else if (cmd == "NAV_MENU")        { haptic_NAV_MENU();        beep(60, 30); }
+  else if (cmd == "EMERGENCY")       { haptic_EMERGENCY();       beepTimes(8, 100, 60); }
+  else if (cmd == "TEST")            { haptic_TEST();            beepTimes(2, 180, 100); }
   else if (cmd == "BATTERY_REQUEST") { sendBatteryResponse(); }
   else {
     Serial.print("[SenseBand] Unknown command: ");
     Serial.println(cmd);
-    // Short-short-short-long for unknown
     shortPulse(); shortPulse(); shortPulse(); longPulse();
+    beepTimes(3, 50, 50);
   }
 }
 
@@ -234,16 +244,15 @@ void dispatchCommand(String cmd) {
 class SenseBandServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) override {
     deviceConnected = true;
-    Serial.println("[BLE] Device connected!");
-    blinkLED(2, 300, 200);
-    // Tell the student the band is ready
-    delay(300);
+    Serial.println("[BLE] SenseBand connected to Sparsh Web App!");
+    beepTimes(2, 80, 60); // Confirmation audio chime on BLE connect
+    delay(200);
     haptic_CONNECTED();
   }
   void onDisconnect(BLEServer* pServer) override {
     deviceConnected = false;
     Serial.println("[BLE] Device disconnected.");
-    blinkLED(1, 600, 0);
+    beep(200, 50); // Single tone on disconnect
   }
 };
 
@@ -262,26 +271,28 @@ class CommandCharacteristicCallbacks : public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n\n╔════════════════════════════╗");
-  Serial.println("║   Sparsh SenseBand v1.0    ║");
-  Serial.println("║ AI Haptic Learning Companion║");
-  Serial.println("╚════════════════════════════╝");
+  Serial.println("\n\n╔═════════════════════════════════════╗");
+  Serial.println("║        Sparsh SenseBand v2.0        ║");
+  Serial.println("║   AI Haptic & Buzzer Companion      ║");
+  Serial.println("╚═════════════════════════════════════╝");
 
   // Init pins
-  pinMode(MOTOR_PIN, OUTPUT);
-  pinMode(LED_PIN,   OUTPUT);
+  pinMode(MOTOR_PIN,  OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
   motorOff();
-  digitalWrite(LED_PIN, LOW);
+  buzzerOff();
 
   // ── Startup sequence ──────────────────────────────────────────────────────
-  // Three quick blinks + one pulse to confirm hardware is alive
-  blinkLED(3, 100, 100);
-  delay(200);
+  // Two quick beeps + motor test to confirm hardware is operational
+  beepTimes(2, 80, 60);
+  delay(150);
   haptic_TEST();
-  delay(500);
+  delay(200);
+  buzzerOff();
 
   // ── Init BLE ──────────────────────────────────────────────────────────────
-  BLEDevice::init("SparshSenseBand");   // << This name appears in browser pair dialog
+  // Device Name: Sparsh SenseBand (matches Web Bluetooth search)
+  BLEDevice::init("Sparsh SenseBand");
 
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new SenseBandServerCallbacks());
@@ -309,12 +320,8 @@ void setup() {
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
 
-  Serial.println("[BLE] Advertising started — waiting for Sparsh app connection...");
-
-  // Slow breathing blink while waiting
-  digitalWrite(LED_PIN, HIGH);
-  delay(1000);
-  digitalWrite(LED_PIN, LOW);
+  Serial.println("[BLE] Advertising started as 'Sparsh SenseBand' — waiting for Sparsh connection...");
+  buzzerOff();
 }
 
 // ─── LOOP ─────────────────────────────────────────────────────────────────────
@@ -331,19 +338,9 @@ void loop() {
     oldConnected = true;
   }
 
-  // Breathing LED when advertising / waiting for connection
-  if (!deviceConnected) {
-    static uint32_t lastBlink = 0;
-    if (millis() - lastBlink > 2000) {
-      lastBlink = millis();
-      digitalWrite(LED_PIN, HIGH);
-      delay(100);
-      digitalWrite(LED_PIN, LOW);
-    }
-  } else {
-    // Solid LED = connected
-    digitalWrite(LED_PIN, HIGH);
-  }
+  // Safety: Buzzer and Motor remain OFF during idle/standby
+  buzzerOff();
+  motorOff();
 
-  delay(10);
+  delay(20);
 }

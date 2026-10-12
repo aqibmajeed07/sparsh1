@@ -6,7 +6,7 @@ import {
     Bluetooth, BluetoothOff, Zap, Radio, Activity, Cpu, RefreshCw,
     CheckCircle, XCircle, Loader2, AlertTriangle, Play, BarChart2,
     Waves, BookOpen, Brain, Bell, Navigation, ChevronRight, Sparkles,
-    Battery, Signal, WifiOff, Info, Heart, Key, Send, Smile, MessageSquare
+    Battery, Signal, WifiOff, Info, Heart, Key, Send, Smile, MessageSquare, Search
 } from 'lucide-react';
 import { senseBand, HAPTIC_PATTERNS, HapticCommand, SenseBandStatus } from '@/lib/senseband';
 
@@ -131,8 +131,8 @@ export default function SenseBandPage() {
         return () => { unsubStatus(); unsubLog(); unsubBatt(); };
     }, []);
 
-    const handleConnect = async () => {
-        await senseBand.connect();
+    const handleConnect = async (allDevices: boolean = false) => {
+        await senseBand.connect(allDevices);
     };
 
     const handleDisconnect = async () => {
@@ -373,13 +373,23 @@ export default function SenseBandPage() {
                                     {/* Action buttons */}
                                     <div className="flex flex-wrap gap-3">
                                         {status === 'disconnected' || status === 'error' ? (
-                                            <button
-                                                onClick={handleConnect}
-                                                disabled={!bluetoothSupported}
-                                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white font-semibold text-sm shadow-lg shadow-[#6C63FF]/30 hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                <Bluetooth className="w-4 h-4" /> Pair via Bluetooth
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => handleConnect(false)}
+                                                    disabled={!bluetoothSupported}
+                                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white font-semibold text-sm shadow-lg shadow-[#6C63FF]/30 hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                                >
+                                                    <Bluetooth className="w-4 h-4" /> Pair SenseBand
+                                                </button>
+                                                <button
+                                                    onClick={() => handleConnect(true)}
+                                                    disabled={!bluetoothSupported}
+                                                    title="Discovers all nearby Bluetooth devices if not found by name"
+                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 font-semibold text-sm hover:bg-white/10 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                                >
+                                                    <Search className="w-4 h-4" /> Scan All Devices
+                                                </button>
+                                            </>
                                         ) : status === 'searching' ? (
                                             <button disabled className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white/60 font-semibold text-sm">
                                                 <Loader2 className="w-4 h-4 animate-spin" /> Searching…
@@ -392,7 +402,7 @@ export default function SenseBandPage() {
                                                 <button onClick={handleCheckBattery} disabled={fetchingBattery} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 font-semibold text-sm hover:bg-purple-500/25 transition">
                                                     <Battery className="w-4 h-4" /> {fetchingBattery ? 'Checking…' : 'Check Battery'}
                                                 </button>
-                                                <button onClick={handleConnect} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/8 border border-white/10 text-white/60 font-semibold text-sm hover:bg-white/12 transition">
+                                                <button onClick={() => handleConnect(false)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/8 border border-white/10 text-white/60 font-semibold text-sm hover:bg-white/12 transition">
                                                     <RefreshCw className="w-4 h-4" /> Reconnect
                                                 </button>
                                             </>

@@ -23,6 +23,19 @@ const nextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'bluetooth=(self), microphone=(self), camera=(self)',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
