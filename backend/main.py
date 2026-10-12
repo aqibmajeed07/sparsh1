@@ -1,7 +1,7 @@
 import os
 import json
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, UploadFile, File
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File, WebSocket, WebSocketDisconnect
 import urllib.error
 import base64
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,6 +78,43 @@ class RFIDJob(BaseModel):
 
 class RewardCheckinRequest(BaseModel):
     student_id: str
+
+class LiveClassCreateRequest(BaseModel):
+    title: str
+    subject: str
+    grade: str
+    rtc_channel_id: Optional[str] = None
+    teacher_id: Optional[str] = None
+    teacher_name: Optional[str] = "Teacher"
+    institution_id: Optional[str] = None
+
+class LiveClassChatMessage(BaseModel):
+    sender: str
+    role: str = "student"
+    text: str
+    time: Optional[str] = None
+
+class LiveClassSpeechEvent(BaseModel):
+    text: str
+    hindi: Optional[str] = ""
+    speaker: Optional[str] = "Teacher"
+    sign_tokens: Optional[List[str]] = []
+
+class LiveClassJoinRequest(BaseModel):
+    participant_id: str
+    name: str
+    role: str = "student"
+    has_audio: Optional[bool] = False
+    has_video: Optional[bool] = False
+
+class LiveClassReaction(BaseModel):
+    emoji: str
+    sender: Optional[str] = "Student"
+
+class LiveClassHandRaise(BaseModel):
+    participant_id: str
+    name: str
+    raised: bool = True
 
 # Detector is imported lazily to ensure server boots in <70MB RAM without Render OOM
 try:
@@ -1841,6 +1878,428 @@ async def get_student_performance(student_id: str):
         "subject_progress": subject_progress,
         "quiz_history": quiz_history
     }
+
+# ─── REAL-TIME LIVE CLASSROOM SERVICE ──────────────────────────────────────────
+
+class LiveClassRoomManager:
+    def __init__(self):
+        # channel_id -> list of active WebSocket connections
+        self.rooms: Dict[str, List[WebSocket]] = {}
+        # channel_id -> session info dictionary
+        self.sessions: Dict[str, Dict[str, Any]] = {}
+        # channel_id -> list of chat messages
+        self.chat_history: Dict[str, List[Dict[str, Any]]] = {}
+        # channel_id -> dict of participant_id -> participant details
+        self.participants: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        # channel_id -> latest speech event
+        self.latest_speech: Dict[str, Dict[str, Any]] = {}
+
+    async def connect(self, channel_id: str, websocket: WebSocket):
+        await websocket.accept()
+        if channel_id not in self.rooms:
+            self.rooms[channel_id] = []
+        self.rooms[channel_id].append(websocket)
+
+    def disconnect(self, channel_id: str, websocket: WebSocket):
+        if channel_id in self.rooms and websocket in self.rooms[channel_id]:
+            self.rooms[channel_id].remove(websocket)
+            if not self.rooms[channel_id]:
+                del self.rooms[channel_id]
+
+    async def broadcast(self, channel_id: str, event_data: dict):
+        if channel_id not in self.rooms:
+            return
+        dead_connections = []
+        for ws in self.rooms[channel_id]:
+            try:
+                await ws.send_json(event_data)
+            except Exception:
+                dead_connections.append(ws)
+        for dead in dead_connections:
+            if dead in self.rooms[channel_id]:
+                self.rooms[channel_id].remove(dead)
+
+live_manager = LiveClassRoomManager()
+
+@app.post("/api/live-classes/create")
+async def create_live_class(req: LiveClassCreateRequest):
+    channel_name = req.rtc_channel_id
+    if not channel_name:
+        sanitized_subject = req.subject.replace(" ", "").lower()
+        channel_name = f"sparsh-{sanitized_subject}-g{req.grade}-{int(datetime.now().timestamp()) % 100000}"
+    
+    session_data = {
+        "id": f"sess-{channel_name}",
+        "rtc_channel_id": channel_name,
+        "title": req.title,
+        "subject": req.subject,
+        "grade": str(req.grade),
+        "teacher_id": req.teacher_id,
+        "teacher_name": req.teacher_name or "Teacher",
+        "institution_id": req.institution_id,
+        "status": "live",
+        "is_active": True,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "student_count": 0
+    }
+    
+    # 1. Store in memory for instant zero-latency retrieval
+    live_manager.sessions[channel_name] = session_data
+    if channel_name not in live_manager.chat_history:
+        live_manager.chat_history[channel_name] = [
+            {
+                "id": f"sys-start-{channel_name}",
+                "sender": "System AI",
+                "role": "system",
+                "text": f"Live class started: {req.title}. 3D ISL Avatar & Captions are active.",
+                "time": datetime.now().strftime("%I:%M %p")
+            }
+        ]
+    if channel_name not in live_manager.participants:
+        live_manager.participants[channel_name] = {
+            "teacher-host": {
+                "id": "teacher-host",
+                "participant_id": "teacher-host",
+                "name": f"{req.teacher_name or 'Teacher'} (Host)",
+                "role": "teacher",
+                "is_host": True,
+                "has_audio": True,
+                "has_video": True,
+                "hand_raised": False,
+                "joined_at": datetime.now().isoformat()
+            }
+        }
+
+    # 2. Sync to Supabase if reachable
+    if supabase:
+        try:
+            res = supabase.table("live_sessions").insert({
+                "rtc_channel_id": channel_name,
+                "title": req.title,
+                "subject": req.subject,
+                "grade": str(req.grade),
+                "teacher_id": req.teacher_id,
+                "teacher_name": req.teacher_name or "Teacher",
+                "institution_id": req.institution_id,
+                "status": "live",
+                "is_active": True,
+                "started_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            if res.data:
+                session_data["id"] = res.data[0].get("id", session_data["id"])
+                live_manager.sessions[channel_name] = session_data
+        except Exception as e:
+            print(f"[LiveClass DB Warning] Supabase insert fallback to in-memory: {e}")
+
+    await live_manager.broadcast(channel_name, {
+        "type": "SESSION_CREATED",
+        "session": session_data
+    })
+
+    return {"status": "success", "session": session_data}
+
+
+@app.get("/api/live-classes/active")
+async def get_active_live_classes():
+    active_list = []
+    
+    # 1. Fetch from Supabase
+    if supabase:
+        try:
+            res = supabase.table("live_sessions").select("*").eq("status", "live").order("started_at", desc=True).execute()
+            if res.data:
+                for row in res.data:
+                    ch = row.get("rtc_channel_id")
+                    count = len(live_manager.participants.get(ch, {}))
+                    active_list.append({
+                        "id": row.get("id"),
+                        "rtc_channel_id": ch,
+                        "title": row.get("title") or "Live Classroom",
+                        "subject": row.get("subject") or "General",
+                        "grade": str(row.get("grade") or "8"),
+                        "teacher_name": row.get("teacher_name") or "Teacher",
+                        "status": "live",
+                        "started_at": row.get("started_at"),
+                        "student_count": max(count, 0)
+                    })
+        except Exception as e:
+            print(f"[LiveClass DB Warning] Could not fetch from Supabase: {e}")
+
+    # 2. Merge with in-memory active sessions
+    existing_channels = {item["rtc_channel_id"] for item in active_list}
+    for ch, sess in live_manager.sessions.items():
+        if sess.get("status") == "live" and ch not in existing_channels:
+            count = len(live_manager.participants.get(ch, {}))
+            sess_copy = dict(sess)
+            sess_copy["student_count"] = count
+            active_list.append(sess_copy)
+
+    return {"status": "success", "count": len(active_list), "classes": active_list}
+
+
+@app.get("/api/live-classes/{channel_id}")
+async def get_live_class_details(channel_id: str):
+    # Check in-memory
+    if channel_id in live_manager.sessions:
+        sess = dict(live_manager.sessions[channel_id])
+        sess["student_count"] = len(live_manager.participants.get(channel_id, {}))
+        return {"status": "success", "session": sess}
+
+    # Check Supabase
+    if supabase:
+        try:
+            res = supabase.table("live_sessions").select("*").eq("rtc_channel_id", channel_id).limit(1).execute()
+            if res.data:
+                row = res.data[0]
+                session_obj = {
+                    "id": row.get("id"),
+                    "rtc_channel_id": row.get("rtc_channel_id"),
+                    "title": row.get("title"),
+                    "subject": row.get("subject"),
+                    "grade": str(row.get("grade")),
+                    "teacher_name": row.get("teacher_name") or "Teacher",
+                    "status": row.get("status", "live"),
+                    "started_at": row.get("started_at"),
+                    "student_count": len(live_manager.participants.get(channel_id, {}))
+                }
+                live_manager.sessions[channel_id] = session_obj
+                return {"status": "success", "session": session_obj}
+        except Exception:
+            pass
+
+    # Clean fallback title for any active channel name
+    clean_title = channel_id.replace("sparsh-", "").replace("-", " ").title()
+    fallback_session = {
+        "id": f"sess-{channel_id}",
+        "rtc_channel_id": channel_id,
+        "title": clean_title,
+        "subject": "Live Class",
+        "grade": "8",
+        "teacher_name": "Class Instructor",
+        "status": "live",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "student_count": len(live_manager.participants.get(channel_id, {}))
+    }
+    live_manager.sessions[channel_id] = fallback_session
+    return {"status": "success", "session": fallback_session}
+
+
+@app.post("/api/live-classes/{channel_id}/end")
+async def end_live_class(channel_id: str):
+    if channel_id in live_manager.sessions:
+        live_manager.sessions[channel_id]["status"] = "ended"
+        live_manager.sessions[channel_id]["ended_at"] = datetime.now(timezone.utc).isoformat()
+
+    if supabase:
+        try:
+            supabase.table("live_sessions").update({
+                "status": "ended",
+                "ended_at": datetime.now(timezone.utc).isoformat()
+            }).eq("rtc_channel_id", channel_id).execute()
+        except Exception:
+            pass
+
+    await live_manager.broadcast(channel_id, {
+        "type": "SESSION_ENDED",
+        "channel_id": channel_id
+    })
+
+    return {"status": "success", "message": f"Session {channel_id} ended"}
+
+
+@app.get("/api/live-classes/{channel_id}/chat")
+async def get_live_class_chat(channel_id: str):
+    messages = live_manager.chat_history.get(channel_id, [])
+    
+    if supabase and not messages:
+        try:
+            res = supabase.table("live_class_messages").select("*").eq("rtc_channel_id", channel_id).order("created_at", desc=False).execute()
+            if res.data:
+                messages = [
+                    {
+                        "id": str(r.get("id")),
+                        "sender": r.get("sender_name"),
+                        "role": r.get("role"),
+                        "text": r.get("message"),
+                        "time": (r.get("created_at") or "")[11:16]
+                    }
+                    for r in res.data
+                ]
+                live_manager.chat_history[channel_id] = messages
+        except Exception:
+            pass
+
+    return {"status": "success", "messages": messages}
+
+
+@app.post("/api/live-classes/{channel_id}/chat")
+async def post_live_class_chat(channel_id: str, msg: LiveClassChatMessage):
+    msg_id = f"msg-{int(datetime.now().timestamp()*1000)}"
+    time_str = msg.time or datetime.now().strftime("%I:%M %p")
+    
+    record = {
+        "id": msg_id,
+        "sender": msg.sender,
+        "role": msg.role,
+        "text": msg.text,
+        "time": time_str
+    }
+
+    if channel_id not in live_manager.chat_history:
+        live_manager.chat_history[channel_id] = []
+    live_manager.chat_history[channel_id].append(record)
+
+    if supabase:
+        try:
+            supabase.table("live_class_messages").insert({
+                "rtc_channel_id": channel_id,
+                "sender_name": msg.sender,
+                "role": msg.role,
+                "message": msg.text
+            }).execute()
+        except Exception:
+            pass
+
+    await live_manager.broadcast(channel_id, {
+        "type": "NEW_MESSAGE",
+        "message": record
+    })
+
+    return {"status": "success", "message": record}
+
+
+@app.post("/api/live-classes/{channel_id}/speech")
+async def post_teacher_speech(channel_id: str, speech: LiveClassSpeechEvent):
+    event_data = {
+        "id": f"speech-{int(datetime.now().timestamp()*1000)}",
+        "text": speech.text,
+        "hindi": speech.hindi or "",
+        "speaker": speech.speaker or "Teacher",
+        "sign_tokens": speech.sign_tokens or [],
+        "timestamp": datetime.now().isoformat()
+    }
+    live_manager.latest_speech[channel_id] = event_data
+
+    await live_manager.broadcast(channel_id, {
+        "type": "TEACHER_SPEECH",
+        "speech": event_data
+    })
+
+    return {"status": "success", "speech": event_data}
+
+
+@app.get("/api/live-classes/{channel_id}/speech/latest")
+async def get_latest_teacher_speech(channel_id: str):
+    speech = live_manager.latest_speech.get(channel_id, None)
+    return {"status": "success", "speech": speech}
+
+
+@app.get("/api/live-classes/{channel_id}/participants")
+async def get_live_class_participants(channel_id: str):
+    p_dict = live_manager.participants.get(channel_id, {})
+    return {"status": "success", "participants": list(p_dict.values())}
+
+
+@app.post("/api/live-classes/{channel_id}/join")
+async def join_live_class(channel_id: str, req: LiveClassJoinRequest):
+    if channel_id not in live_manager.participants:
+        live_manager.participants[channel_id] = {}
+
+    p_data = {
+        "id": req.participant_id,
+        "participant_id": req.participant_id,
+        "name": req.name,
+        "role": req.role,
+        "is_host": (req.role == "teacher"),
+        "has_audio": req.has_audio or False,
+        "has_video": req.has_video or False,
+        "hand_raised": False,
+        "joined_at": datetime.now().isoformat()
+    }
+    live_manager.participants[channel_id][req.participant_id] = p_data
+
+    if supabase:
+        try:
+            supabase.table("live_class_participants").upsert({
+                "rtc_channel_id": channel_id,
+                "participant_id": req.participant_id,
+                "name": req.name,
+                "role": req.role,
+                "has_audio": req.has_audio or False,
+                "has_video": req.has_video or False
+            }, on_conflict="rtc_channel_id,participant_id").execute()
+        except Exception:
+            pass
+
+    await live_manager.broadcast(channel_id, {
+        "type": "PARTICIPANT_JOINED",
+        "participant": p_data
+    })
+
+    return {"status": "success", "participant": p_data}
+
+
+@app.post("/api/live-classes/{channel_id}/leave")
+async def leave_live_class(channel_id: str, req: LiveClassJoinRequest):
+    if channel_id in live_manager.participants and req.participant_id in live_manager.participants[channel_id]:
+        del live_manager.participants[channel_id][req.participant_id]
+
+    await live_manager.broadcast(channel_id, {
+        "type": "PARTICIPANT_LEFT",
+        "participant_id": req.participant_id,
+        "name": req.name
+    })
+
+    return {"status": "success", "message": "Left class"}
+
+
+@app.post("/api/live-classes/{channel_id}/reaction")
+async def send_live_class_reaction(channel_id: str, req: LiveClassReaction):
+    reaction_data = {
+        "emoji": req.emoji,
+        "sender": req.sender or "Student",
+        "timestamp": datetime.now().isoformat()
+    }
+    await live_manager.broadcast(channel_id, {
+        "type": "REACTION",
+        "reaction": reaction_data
+    })
+    return {"status": "success", "reaction": reaction_data}
+
+
+@app.post("/api/live-classes/{channel_id}/hand-raise")
+async def toggle_live_class_hand_raise(channel_id: str, req: LiveClassHandRaise):
+    if channel_id in live_manager.participants and req.participant_id in live_manager.participants[channel_id]:
+        live_manager.participants[channel_id][req.participant_id]["hand_raised"] = req.raised
+
+    event_data = {
+        "participant_id": req.participant_id,
+        "name": req.name,
+        "raised": req.raised
+    }
+    await live_manager.broadcast(channel_id, {
+        "type": "HAND_RAISE",
+        "data": event_data
+    })
+    return {"status": "success", "data": event_data}
+
+
+@app.websocket("/ws/live-class/{channel_id}")
+async def websocket_live_class(websocket: WebSocket, channel_id: str):
+    await live_manager.connect(channel_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                payload = json.loads(data)
+                # Broadcast payload to all peers in room
+                await live_manager.broadcast(channel_id, payload)
+            except Exception:
+                pass
+    except WebSocketDisconnect:
+        live_manager.disconnect(channel_id, websocket)
+    except Exception:
+        live_manager.disconnect(channel_id, websocket)
 
 
 def free_port(port: int = 8000):

@@ -112,6 +112,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
 
       setIsProcessingCaption(true);
 
+      let finalTokens: string[] = [];
       try {
         // Send spoken text to AI backend for ISL Grammar Simplification
         const res = await fetch('/api/isl-grammar', {
@@ -123,6 +124,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
         if (res.ok) {
           const data = await res.json();
           if (data.isl_text && data.isl_text.length > 0) {
+            finalTokens = data.isl_text;
             console.log('[ISL STT Simplified]', data.isl_text);
             setIslQueue(prev => {
               const existing = new Set(prev);
@@ -135,6 +137,7 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
         console.error('[ISL AI Translation Error]', err);
         // Fallback to local conversion if backend is unreachable
         const tokens = convertTextToSigns(transcript);
+        finalTokens = tokens;
         if (tokens.length > 0) {
           setIslQueue(prev => {
             const existing = new Set(prev);
@@ -143,6 +146,17 @@ export default function AgoraCall({ channelName, onLeave, captionsEnabled, islEn
           });
         }
       } finally {
+        if (channelName && transcript) {
+          fetch(`/api/live-classes/${channelName}/speech`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: transcript,
+              speaker: userName || 'Teacher',
+              sign_tokens: finalTokens
+            })
+          }).catch(() => {});
+        }
         setTimeout(() => setIsProcessingCaption(false), 600);
       }
     };

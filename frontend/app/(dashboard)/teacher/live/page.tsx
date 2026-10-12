@@ -28,11 +28,84 @@ export default function TeacherLivePage() {
     });
   }, []);
 
+  // Connect real-time chat & WebSocket sync
+  useEffect(() => {
+    if (!isLive || !channelName) return;
+
+    // Load initial chat
+    fetch(`/api/live-classes/${channelName}/chat`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.messages && d.messages.length > 0) {
+          setChatMessages(d.messages.map((m: any) => ({ user: m.sender, message: m.text })));
+        }
+      })
+      .catch(() => {});
+
+    // WebSocket real-time connection
+    let ws: WebSocket | null = null;
+    try {
+      const wsHost = window.location.hostname || '127.0.0.1';
+      ws = new WebSocket(`ws://${wsHost}:8000/ws/live-class/${channelName}`);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'NEW_MESSAGE' && data.message) {
+            setChatMessages(prev => {
+              if (prev.some(m => m.message === data.message.text && m.user === data.message.sender)) return prev;
+              return [...prev, { user: data.message.sender, message: data.message.text }];
+            });
+          }
+        } catch (_) {}
+      };
+    } catch (_) {}
+
+    // Polling fallback every 4s
+    const pollInterval = setInterval(() => {
+      fetch(`/api/live-classes/${channelName}/chat`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.messages && d.messages.length > 0) {
+            setChatMessages(d.messages.map((m: any) => ({ user: m.sender, message: m.text })));
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => {
+      if (ws) ws.close();
+      clearInterval(pollInterval);
+    };
+  }, [isLive, channelName]);
+
   const startLiveClass = async () => {
     const name = `sparsh-${sessionSubject.replace(/\s+/g, '').toLowerCase()}-g${sessionGrade}-${Date.now().toString().slice(-5)}`;
     setChannelName(name);
 
-    // Broadcast to Supabase — fails silently if live_sessions table doesn't exist yet
+    // 1. Create on real Backend API
+    try {
+      const res = await fetch('/api/live-classes/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rtc_channel_id: name,
+          title: sessionTitle,
+          subject: sessionSubject,
+          grade: sessionGrade,
+          teacher_id: profile?.id || 'teacher-host',
+          teacher_name: profile?.full_name || 'Class Instructor',
+          institution_id: profile?.institution_id || null
+        })
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body.session?.id) setSessionId(body.session.id);
+      }
+    } catch (e) {
+      console.warn('Backend live class create fallback:', e);
+    }
+
+    // 2. Broadcast to Supabase — fails silently if live_sessions table doesn't exist yet
     if (profile) {
       try {
         const { data, error } = await supabase.from('live_sessions').insert({
@@ -42,6 +115,7 @@ export default function TeacherLivePage() {
           grade: sessionGrade,
           institution_id: profile.institution_id || null,
           teacher_id: profile.id,
+          teacher_name: profile.full_name || 'Teacher',
           status: 'live',
           started_at: new Date().toISOString()
         }).select().single();
@@ -54,11 +128,33 @@ export default function TeacherLivePage() {
   };
 
   const endSession = async () => {
+    if (channelName) {
+      try {
+        await fetch(`/api/live-classes/${channelName}/end`, { method: 'POST' });
+      } catch (_) {}
+    }
     if (sessionId) {
       await supabase.from('live_sessions').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', sessionId);
     }
     setIsLive(false);
     setSessionId(null);
+  };
+
+  const sendTeacherMessage = async (text: string) => {
+    if (!text.trim() || !channelName) return;
+    const sender = profile?.full_name || 'Teacher (Host)';
+    setChatMessages(m => [...m, { user: 'You', message: text }]);
+    try {
+      await fetch(`/api/live-classes/${channelName}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: sender,
+          role: 'teacher',
+          text: text
+        })
+      });
+    } catch (_) {}
   };
 
   const getJoinLink = () => `${window.location.origin}/student/live-class?channel=${encodeURIComponent(channelName)}`;
@@ -133,15 +229,28 @@ export default function TeacherLivePage() {
               ))}
             </div>
             <div className="flex gap-2 shrink-0">
-              <input placeholder="Message..." className="glass-input flex-1 text-xs py-2"
+              <input
+                id="teacher-chat-input"
+                placeholder="Message class..."
+                className="glass-input flex-1 text-xs py-2"
                 onKeyDown={e => {
                   const input = e.target as HTMLInputElement;
                   if (e.key === 'Enter' && input.value.trim()) {
-                    setChatMessages(m => [...m, { user: 'You', message: input.value }]);
+                    sendTeacherMessage(input.value.trim());
                     input.value = '';
                   }
-                }} />
-              <button className="px-3 py-2 bg-[#6C63FF] text-white rounded-xl text-xs">→</button>
+                }}
+              />
+              <button
+                onClick={() => {
+                  const input = document.getElementById('teacher-chat-input') as HTMLInputElement;
+                  if (input && input.value.trim()) {
+                    sendTeacherMessage(input.value.trim());
+                    input.value = '';
+                  }
+                }}
+                className="px-3 py-2 bg-[#6C63FF] hover:bg-[#5b54e6] text-white rounded-xl text-xs transition"
+              >→</button>
             </div>
           </div>
         </div>

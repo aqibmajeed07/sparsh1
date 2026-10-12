@@ -85,7 +85,7 @@ export default function StudentDashboard() {
           }).subscribe();
         channels.push(lessonsCh);
 
-        // Check for live sessions
+        // Check for live sessions (Supabase + Real Backend API)
         try {
           const { data: session } = await supabase
             .from('live_sessions')
@@ -93,8 +93,28 @@ export default function StudentDashboard() {
             .eq('status', 'live')
             .limit(1)
             .maybeSingle();
-          if (session && isMounted) setLiveSession(session);
-        } catch { /* ignore */ }
+          if (session && isMounted) {
+            setLiveSession(session);
+          } else {
+            const res = await fetch('/api/live-classes/active').catch(() => null);
+            if (res && res.ok) {
+              const b = await res.json();
+              if (b.classes && b.classes.length > 0 && isMounted) {
+                setLiveSession(b.classes[0]);
+              }
+            }
+          }
+        } catch {
+          try {
+            const res = await fetch('/api/live-classes/active').catch(() => null);
+            if (res && res.ok) {
+              const b = await res.json();
+              if (b.classes && b.classes.length > 0 && isMounted) {
+                setLiveSession(b.classes[0]);
+              }
+            }
+          } catch (_) {}
+        }
 
         const liveCh = supabase.channel('realtime_student_live')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, (payload: any) => {
