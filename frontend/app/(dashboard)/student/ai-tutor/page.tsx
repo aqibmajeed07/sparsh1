@@ -205,12 +205,37 @@ export default function AccessibilityAITutorPage() {
     }
 
     try {
-      const res = await fetch('/api/ai-tutor/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, language: currentLang.code, detailed: isDetailedMode })
-      });
-      const data = await res.json();
+      let data: any = null;
+      const directUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://spare-nato-obvious-murphy.trycloudflare.com';
+
+      // 1. Attempt direct connection to tunnel (instant, avoids serverless function limits)
+      try {
+        const directController = new AbortController();
+        const directTimeout = setTimeout(() => directController.abort(), 14000);
+        const directRes = await fetch(`${directUrl}/api/ai-tutor/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, language: currentLang.code, detailed: isDetailedMode }),
+          signal: directController.signal
+        });
+        clearTimeout(directTimeout);
+        if (directRes.ok) {
+          data = await directRes.json();
+        }
+      } catch (err) {
+        // Direct fetch didn't succeed, proceed to proxy
+      }
+
+      // 2. Fallback to Next.js API proxy route
+      if (!data) {
+        const res = await fetch('/api/ai-tutor/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, language: currentLang.code, detailed: isDetailedMode })
+        });
+        data = await res.json();
+      }
+
       setIsThinking(false);
 
       const tempAiId = crypto.randomUUID();

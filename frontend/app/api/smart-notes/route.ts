@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'https://spare-nato-obvious-murphy.trycloudflare.com';
+export const maxDuration = 60;
+
+const DEFAULT_TUNNEL = 'https://spare-nato-obvious-murphy.trycloudflare.com';
+const PRIMARY_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_TUNNEL;
 
 export async function POST(req: Request) {
   let body: any = {};
@@ -10,24 +13,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Invalid JSON' }, { status: 400 });
   }
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+  const candidateUrls = [PRIMARY_URL];
+  if (PRIMARY_URL !== DEFAULT_TUNNEL) {
+    candidateUrls.push(DEFAULT_TUNNEL);
+  }
 
-    const res = await fetch(`${BACKEND_URL}/api/smart-notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+  for (const baseUrl of candidateUrls) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 28000);
 
-    if (res.ok) {
-      const data = await res.json();
-      return NextResponse.json(data);
-    }
-  } catch (err: any) {
-    console.warn('[Smart Notes Proxy] Backend error or timeout:', err?.message);
+      const res = await fetch(`${baseUrl}/api/smart-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const data = await res.json();
+        return NextResponse.json(data);
+      }
+    } catch (err: any) {
+      console.warn(`[Smart Notes Proxy] Failed fetching ${baseUrl}:`, err?.message);
+     }
   }
 
   const text = body.text || 'Lesson Content';

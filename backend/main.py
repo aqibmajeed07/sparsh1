@@ -857,7 +857,7 @@ def ai_tutor_chat(job: ChatMessage):
     prompt = f"Question: '{user_msg}'"
 
     try:
-        content = call_nvidia_ai(prompt, system_prompt=system, max_tokens=500 if is_detailed else 250)
+        content = call_nvidia_ai(prompt, system_prompt=system, max_tokens=300 if is_detailed else 130)
         lines = [line.strip() for line in content.strip().split('\n') if line.strip()]
         
         reply_lines = []
