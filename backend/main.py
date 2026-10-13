@@ -163,11 +163,76 @@ except Exception as e:
     print(f"Error importing sign detector: {e}")
     detector = None
 
+def _render_keep_alive_worker():
+    """
+    Background worker that sends periodic pings to keep the Render web service
+    active and prevent Render's free tier from spinning down after 15 minutes of inactivity.
+    Zero side-effects: pings the lightweight /ping endpoint which executes in <1ms without DB/AI operations.
+    """
+    import time
+    import urllib.request
+
+    # Wait 45 seconds after container startup before first ping
+    time.sleep(45)
+
+    # Render automatically sets RENDER_EXTERNAL_URL (e.g. https://sparsh-538t.onrender.com)
+    external_base = os.getenv("RENDER_EXTERNAL_URL", "https://sparsh-538t.onrender.com").rstrip("/")
+    ping_url = f"{external_base}/ping"
+    interval = int(os.getenv("KEEP_ALIVE_INTERVAL_SEC", "600"))  # 10 minutes (600s)
+
+    is_render = os.getenv("RENDER", "").lower() in ("true", "1") or "onrender.com" in external_base
+    if not is_render and os.getenv("FORCE_KEEP_ALIVE", "false").lower() != "true":
+        print("[Keep-Alive] Running in local environment. Set FORCE_KEEP_ALIVE=true to enable self-pinging locally.")
+        return
+
+    print(f"[Keep-Alive] Continuous keep-alive active. Target: {ping_url} (interval: {interval}s)")
+
+    while True:
+        try:
+            req = urllib.request.Request(
+                ping_url,
+                headers={
+                    "User-Agent": "SparshKeepAlive/1.0",
+                    "Accept": "application/json"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                print(f"[Keep-Alive] Ping {ping_url} -> HTTP {resp.status} at {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}")
+        except Exception as e:
+            print(f"[Keep-Alive] Notice during heartbeat ping ({ping_url}): {e}")
+
+        time.sleep(interval)
+
+
 @app.on_event("startup")
 def startup_load_model():
+    import threading
     if detector and not detector.ready:
-        import threading
         threading.Thread(target=detector._ensure_loaded, daemon=True).start()
+
+    # Launch background keep-alive thread to prevent Render from going to sleep
+    threading.Thread(target=_render_keep_alive_worker, daemon=True, name="render-keepalive").start()
+
+# ─── Keep-Alive & Ping ────────────────────────────────────────────────────────
+
+@app.get("/ping")
+@app.head("/ping")
+@app.get("/api/ping")
+@app.head("/api/ping")
+def ping():
+    """
+    Ultra-lightweight keep-alive heartbeat endpoint.
+    Zero side-effects:
+      - Does NOT touch the database (no Supabase reads or writes)
+      - Does NOT trigger any AI inference or GPU/CPU models
+      - Does NOT mutate any session or progress state
+      - Response time < 1ms, RAM footprint ~ 0
+    """
+    return {
+        "status": "alive",
+        "pong": True,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
 # ─── Health ───────────────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import BackendKeepAlive from '@/components/BackendKeepAlive';
 
 export const viewport: Viewport = {
   themeColor: '#6C63FF',
@@ -53,7 +54,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="font-inter antialiased">{children}</body>
+      <body className="font-inter antialiased">
+        <BackendKeepAlive />
+        {children}
+      </body>
     </html>
   );
 }
