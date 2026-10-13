@@ -61,7 +61,7 @@ export default function SmartNotesPage() {
 
         // Trigger SenseBand Haptics
         try {
-            await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/senseband/ai-emotion`, {
+            await fetch('/api/senseband/ai-emotion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: 'AI smart notes generated' })

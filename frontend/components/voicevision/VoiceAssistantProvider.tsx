@@ -156,9 +156,8 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
         }
 
         // Fallback: If no recognized navigation/command intent, query SPARSH AI Tutor
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
         try {
-          const res = await fetch(`${backendUrl}/api/ai-tutor/chat`, {
+          const res = await fetch('/api/ai-tutor/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: trimmed, language: 'en-US', detailed: false }),
