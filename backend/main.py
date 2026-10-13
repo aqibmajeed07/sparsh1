@@ -432,8 +432,41 @@ def call_ollama_ai(prompt: str, system_prompt: str = "", max_tokens: int = 128) 
     raise Exception("Ollama API failed")
 
 def call_nvidia_ai(prompt: str, system_prompt: str = "You are Sparsh AI, an expert inclusive education tutor powered by AI.", max_tokens: int = 256, temperature: float = 0.2) -> str:
-    """Fast AI invocation: tries Ollama Cloud (sub-2s) or NVIDIA NIM."""
-    # 1. Try Ollama Cloud API first for blazing fast responses (1.4s)
+    """Fast AI invocation: tries Local Ollama, Ollama Cloud (sub-2s), or NVIDIA NIM."""
+    # 0. Try Local Ollama first (running on your laptop on port 11434)
+    try:
+        import urllib.request
+        import json as json_lib
+        model_name = os.getenv("OLLAMA_LOCAL_MODEL", "")
+        if not model_name:
+            try:
+                with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=1.0) as tag_resp:
+                    tags_data = json_lib.loads(tag_resp.read().decode("utf-8"))
+                    models = tags_data.get("models", [])
+                    if models:
+                        model_name = models[0].get("name", "llama3")
+            except Exception:
+                pass
+        if not model_name:
+            model_name = "llama3"
+
+        url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": model_name,
+            "prompt": f"{system_prompt}\n\n{prompt}".strip() if system_prompt else prompt,
+            "stream": False,
+            "options": {"num_predict": max_tokens}
+        }
+        req = urllib.request.Request(url, data=json_lib.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=25.0) as response:
+            res_data = json_lib.loads(response.read().decode("utf-8"))
+            if res_data.get("response"):
+                print(f"[AI Engine] Generated response using Local Ollama ({model_name})")
+                return res_data["response"].strip()
+    except Exception:
+        pass
+
+    # 1. Try Ollama Cloud API
     if OLLAMA_API_KEY:
         try:
             return call_ollama_ai(prompt, system_prompt=system_prompt, max_tokens=max_tokens)
@@ -733,22 +766,36 @@ def call_nvidia_ai(prompt: str, system_prompt: str = "You are SPARSH AI Tutor.",
     import urllib.request
     import json as json_lib
 
-    # 1. Try Local Ollama instance first (fast 0.5s limit)
+    # 1. Try Local Ollama instance (running locally on port 11434)
     try:
+        model_name = os.getenv("OLLAMA_LOCAL_MODEL", "")
+        if not model_name:
+            try:
+                with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=1.0) as tag_resp:
+                    tags_data = json_lib.loads(tag_resp.read().decode("utf-8"))
+                    models = tags_data.get("models", [])
+                    if models:
+                        model_name = models[0].get("name", "llama3")
+            except Exception:
+                pass
+        if not model_name:
+            model_name = "llama3"
+
         url = "http://localhost:11434/api/generate"
         payload = {
-            "model": "llama3",
+            "model": model_name,
             "prompt": f"{system_prompt}\n\n{prompt}",
             "stream": False,
             "options": {"num_predict": max_tokens}
         }
         req = urllib.request.Request(url, data=json_lib.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=0.5) as response:
+        with urllib.request.urlopen(req, timeout=25.0) as response:
             res_data = json_lib.loads(response.read().decode("utf-8"))
             if res_data.get("response"):
+                print(f"[AI Engine] Generated response using Local Ollama ({model_name})")
                 return res_data["response"].strip()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[AI Engine] Local Ollama fallback triggered: {e}")
 
     # 2. Try NVIDIA NIM API (short 0.8s limit)
     if NVIDIA_API_KEY:
