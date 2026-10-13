@@ -6,8 +6,8 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, ContactShadows } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { resolveSign, resolveToken } from '@/lib/isl/signMap';
 import type { BoneRotation } from '@/lib/isl/signPoses';
@@ -28,7 +28,17 @@ export interface FramingConfig {
 }
 
 export const FRAMING_CONFIGS: Record<AvatarFramingMode, FramingConfig> = {
-  // Default: Big & Grounded towards bottom of screen (Waist-Up view)
+  // Default: Full Body view (Grounded natural pose)
+  full: {
+    scale: 1.40,
+    posY: -0.42,
+    camPos: [0, 0.28, 2.75],
+    camTargetY: 0.22,
+    fov: 46,
+    label: 'Full Body',
+    badge: '🧍 Full View',
+  },
+  // Waist: Big & Grounded towards bottom of screen (Waist-Up view)
   waist: {
     scale: 1.95,
     posY: -0.80,
@@ -47,16 +57,6 @@ export const FRAMING_CONFIGS: Record<AvatarFramingMode, FramingConfig> = {
     fov: 40,
     label: 'Close-Up',
     badge: '👤 Chest Close-Up',
-  },
-  // Full: Full Body view
-  full: {
-    scale: 1.40,
-    posY: -0.42,
-    camPos: [0, 0.28, 2.75],
-    camTargetY: 0.22,
-    fov: 46,
-    label: 'Full Body',
-    badge: '🧍 Full View',
   },
 };
 
@@ -518,12 +518,32 @@ function Avatar({
 }
 
 // ═══════════════════════════════════════════════
-// CAMERA LOCK & CINEMATIC VIEW
+// IN-PLACE CAMERA CONTROLLER (NO CANVAS UNMOUNT)
 // ═══════════════════════════════════════════════
-function CameraTarget({ targetY = 0.20 }: { targetY?: number }) {
-  useFrame(({ camera }) => {
+function CameraController({
+  camPos,
+  targetY,
+  fov,
+}: {
+  camPos: [number, number, number];
+  targetY: number;
+  fov: number;
+}) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    if ('fov' in camera) {
+      const persCamera = camera as THREE.PerspectiveCamera;
+      persCamera.fov = fov;
+      persCamera.position.set(camPos[0], camPos[1], camPos[2]);
+      persCamera.updateProjectionMatrix();
+    }
+  }, [camera, fov, camPos]);
+
+  useFrame(() => {
     camera.lookAt(0, targetY, 0);
   });
+
   return null;
 }
 
@@ -536,18 +556,17 @@ export default function SignAvatarOverlay({
   className,
   isProcessing,
   isSpeaking,
-  framing = 'waist',
+  framing = 'full',
   showFramingToggle = true,
   showIslBadge = true,
 }: SignAvatarOverlayProps) {
-  const [canvasKey, setCanvasKey] = useState(0);
-  const [framingMode, setFramingMode] = useState<AvatarFramingMode>(framing);
+  const [framingMode, setFramingMode] = useState<AvatarFramingMode>(framing || 'full');
 
   useEffect(() => {
     if (framing) setFramingMode(framing);
   }, [framing]);
 
-  const config = FRAMING_CONFIGS[framingMode] || FRAMING_CONFIGS.waist;
+  const config = FRAMING_CONFIGS[framingMode] || FRAMING_CONFIGS.full;
 
   return (
     <div
@@ -603,10 +622,9 @@ export default function SignAvatarOverlay({
         </div>
       </div>
 
-      {/* 3D Canvas with Auto-Recovery & Memory Optimization */}
+      {/* 3D Canvas with High-Performance Stable Rendering (No unmounts, zero flicker) */}
       <div className="flex-1 w-full h-full min-h-[460px] relative">
         <Canvas
-          key={`${canvasKey}-${framingMode}`}
           shadows
           dpr={[1, 1.5]}
           camera={{
@@ -617,31 +635,20 @@ export default function SignAvatarOverlay({
           }}
           gl={{
             antialias: true,
-            powerPreference: 'high-performance',
+            powerPreference: 'default',
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.35,
           }}
-          onCreated={({ gl }) => {
-            const handleContextLost = (event: Event) => {
-              event.preventDefault();
-              console.warn('[Avatar 3D] WebGL Context lost. Auto-recovering fresh canvas…');
-              setTimeout(() => {
-                setCanvasKey(k => k + 1);
-              }, 300);
-            };
-            const handleContextRestored = () => {
-              console.log('[Avatar 3D] WebGL Context restored.');
-            };
-
-            const dom = gl.domElement;
-            dom.addEventListener('webglcontextlost', handleContextLost, false);
-            dom.addEventListener('webglcontextrestored', handleContextRestored, false);
-          }}
         >
-          <CameraTarget targetY={config.camTargetY} />
+          <CameraController
+            camPos={config.camPos}
+            targetY={config.camTargetY}
+            fov={config.fov}
+          />
 
-          {/* Studio Lighting */}
-          <ambientLight intensity={0.55} color="#E2E8F0" />
+          {/* High-Fidelity Studio Offline Lighting (Zero network requests, zero HDR latency) */}
+          <ambientLight intensity={0.65} color="#E2E8F0" />
+          <hemisphereLight args={['#F8FAFC', '#1E293B', 0.65]} />
           <directionalLight
             position={[1.8, 4.2, 2.6]}
             intensity={2.8}
@@ -654,29 +661,26 @@ export default function SignAvatarOverlay({
             shadow-camera-top={2}
             shadow-camera-bottom={-1}
           />
-          <directionalLight position={[-2.2, 1.6, -0.6]} intensity={0.65} color="#818CF8" />
+          <directionalLight position={[-2.2, 1.6, -0.6]} intensity={0.7} color="#818CF8" />
           <pointLight position={[0, 3.2, -1.2]} intensity={1.1} color="#6366F1" distance={6} />
           <pointLight position={[0.6, 2.6, 1.4]} intensity={0.8} color="#FFFFFF" distance={5} />
           <pointLight position={[-0.6, 0.6, 1.2]} intensity={0.5} color="#10B981" distance={4} />
 
-          <Environment preset="studio" />
-
-          <React.Suspense fallback={null}>
-            <Avatar
-              queue={queue}
-              onSignComplete={onSignComplete}
-              isSpeaking={isSpeaking}
-              scale={config.scale}
-              posY={config.posY}
-            />
-          </React.Suspense>
+          <Avatar
+            queue={queue}
+            onSignComplete={onSignComplete}
+            isSpeaking={isSpeaking}
+            scale={config.scale}
+            posY={config.posY}
+          />
 
           <ContactShadows
             position={[0, config.posY - 0.05, 0]}
             opacity={0.55}
             scale={3.6}
             blur={2.4}
-            resolution={512}
+            resolution={256}
+            frames={1}
             color="#1E1B4B"
           />
         </Canvas>
@@ -705,10 +709,10 @@ export default function SignAvatarOverlay({
           )}
         </div>
 
-        {/* Right: Framing Presets (Big Grounded, Close-Up, Full) */}
+        {/* Right: Framing Presets (Full Body default, Big Grounded, Close-Up) */}
         {showFramingToggle !== false && (
           <div className="flex items-center gap-1 bg-black/60 border border-white/10 p-0.5 rounded-xl shrink-0">
-            {(['waist', 'closeup', 'full'] as const).map(mode => (
+            {(['full', 'waist', 'closeup'] as const).map(mode => (
               <button
                 key={mode}
                 type="button"

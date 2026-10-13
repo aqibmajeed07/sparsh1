@@ -377,6 +377,7 @@ export default function AccessibilityAITutorPage() {
               isProcessing={isThinking}
               isSpeaking={isSpeaking}
               speakingText={speakingText}
+              framing="full"
               showIslBadge={false}
               className="w-full h-full flex-1 rounded-none border-0"
             />
