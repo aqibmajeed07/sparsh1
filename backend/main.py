@@ -1001,19 +1001,18 @@ def voice_authentication(job: VoiceAuthJob):
 
 @app.post("/api/doubt-solver")
 def solve_doubt(job: DoubtSolverJob):
-    """Explains highlighted text in child-friendly simple language using Llama 3.3 70B."""
+    """Explains highlighted text in child-friendly simple language using Local Ollama / AI."""
     text = (job.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="No text provided")
         
-    if NVIDIA_API_KEY:
-        try:
-            prompt = f"Explain this complex sentence simply as if to an 8-year-old child with visual or hearing impairment: '{text[:500]}'. Keep it under 3 short sentences."
-            system = "You are a gentle AI teacher explaining concepts simply to young learners."
-            explanation = call_nvidia_ai(prompt, system_prompt=system, temperature=0.3).strip()
-            return {"original": text, "simple_explanation": explanation}
-        except Exception as e:
-            print(f"[Doubt Solver] NVIDIA Llama error: {e}")
+    try:
+        prompt = f"Explain this complex sentence simply as if to an 8-year-old child with visual or hearing impairment: '{text[:500]}'. Keep it under 3 short sentences."
+        system = "You are a gentle AI teacher explaining concepts simply to young learners."
+        explanation = call_nvidia_ai(prompt, system_prompt=system, temperature=0.3).strip()
+        return {"original": text, "simple_explanation": explanation}
+    except Exception as e:
+        print(f"[Doubt Solver] AI error: {e}")
             
     return {
         "original": text,
@@ -1025,7 +1024,7 @@ class HomeworkHelperJob(BaseModel):
 
 @app.post("/api/homework-helper")
 def solve_homework(job: HomeworkHelperJob):
-    """Solves any student homework question using NVIDIA Llama 3.3 70B (or Ollama) with step-by-step reasoning."""
+    """Solves any student homework question using Local Ollama / AI with step-by-step reasoning."""
     q = (job.question or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="No question provided")
@@ -1048,37 +1047,21 @@ Return a valid JSON object with the exact following keys:
 CRITICAL: Return ONLY raw valid JSON. Do not include markdown code block syntax.
 """
 
-    system = "You are SPARSH AI, an expert school homework tutor providing step-by-step step-by-step explanations in valid JSON."
+    system = "You are SPARSH AI, an expert school homework tutor providing step-by-step explanations in valid JSON."
     
-    if NVIDIA_API_KEY:
-        try:
-            res = call_nvidia_ai(prompt, system_prompt=system, temperature=0.2).strip()
-            if res.startswith("```"):
-                res = res.split("\n", 1)[1]
-            if res.endswith("```"):
-                res = res.rsplit("\n", 1)[0]
-            if res.startswith("json"):
-                res = res[4:].strip()
-            parsed = json.loads(res.strip())
-            if "summary" in parsed and "steps" in parsed:
-                return parsed
-        except Exception as e:
-            print(f"[Homework Helper] NVIDIA Llama error: {e}")
-            
-    if OLLAMA_API_KEY:
-        try:
-            res = call_ollama_ai(prompt, system_prompt=system).strip()
-            if res.startswith("```"):
-                res = res.split("\n", 1)[1]
-            if res.endswith("```"):
-                res = res.rsplit("\n", 1)[0]
-            if res.startswith("json"):
-                res = res[4:].strip()
-            parsed = json.loads(res.strip())
-            if "summary" in parsed and "steps" in parsed:
-                return parsed
-        except Exception as e:
-            print(f"[Homework Helper] Ollama error: {e}")
+    try:
+        res = call_nvidia_ai(prompt, system_prompt=system, temperature=0.2).strip()
+        if res.startswith("```"):
+            res = res.split("\n", 1)[1]
+        if res.endswith("```"):
+            res = res.rsplit("\n", 1)[0]
+        if res.startswith("json"):
+            res = res[4:].strip()
+        parsed = json.loads(res.strip())
+        if "summary" in parsed and "steps" in parsed:
+            return parsed
+    except Exception as e:
+        print(f"[Homework Helper] AI generation error: {e}")
 
     # Dynamic Fallback Solver for math / science / reasoning questions
     q_lower = q.lower()
