@@ -7,10 +7,25 @@ const PRIMARY_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_U
 
 function getCandidateUrls() {
   const urls: string[] = [];
-  // Prioritize local backend first so local calls don't timeout through Cloudflare tunnel
-  urls.push('http://127.0.0.1:8000');
-  if (PRIMARY_URL && !urls.includes(PRIMARY_URL)) urls.push(PRIMARY_URL);
-  if (!urls.includes(DEFAULT_TUNNEL)) urls.push(DEFAULT_TUNNEL);
+  const isVercel = Boolean(process.env.VERCEL) || process.env.NODE_ENV === 'production';
+
+  // Only check local 127.0.0.1 when running locally outside Vercel/production
+  if (!isVercel) {
+    urls.push('http://127.0.0.1:8000');
+  }
+
+  // Add PRIMARY_URL if it is not localhost in production
+  if (PRIMARY_URL && !urls.includes(PRIMARY_URL)) {
+    if (!isVercel || (!PRIMARY_URL.includes('127.0.0.1') && !PRIMARY_URL.includes('localhost'))) {
+      urls.push(PRIMARY_URL);
+    }
+  }
+
+  // Add DEFAULT_TUNNEL as cloud backend
+  if (!urls.includes(DEFAULT_TUNNEL)) {
+    urls.push(DEFAULT_TUNNEL);
+  }
+
   return urls;
 }
 
@@ -29,7 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     try {
       const targetUrl = `${baseUrl}/api/glasses/${path}${search}`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 7000);
 
       const res = await fetch(targetUrl, {
         method: 'GET',

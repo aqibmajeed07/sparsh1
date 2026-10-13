@@ -31,6 +31,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { fetchGlassesApi, getGlassesCaptureUrl } from '@/lib/voicevision/glassesApi';
 
 export function VoiceAssistantControl() {
   const {
@@ -59,7 +60,7 @@ export function VoiceAssistantControl() {
   // ── Smart Glasses Live Camera & Streaming State ──
   const [cameraSource, setCameraSource] = useState<'glasses' | 'webcam'>('glasses');
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
-  const [liveGlassesFrameUrl, setLiveGlassesFrameUrl] = useState<string>('/api/glasses/capture');
+  const [liveGlassesFrameUrl, setLiveGlassesFrameUrl] = useState<string>(getGlassesCaptureUrl());
   const [glassesIp, setGlassesIp] = useState<string>('http://10.157.174.6');
   const [tempGlassesIp, setTempGlassesIp] = useState<string>('http://10.157.174.6');
   const [showIpSettings, setShowIpSettings] = useState<boolean>(false);
@@ -102,10 +103,10 @@ export function VoiceAssistantControl() {
     if (!isOpen || activeTab !== 'glasses' || cameraSource !== 'glasses') return;
 
     // Initial frame refresh immediately upon opening tab
-    setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+    setLiveGlassesFrameUrl(getGlassesCaptureUrl());
 
     // Check connection & battery from backend
-    fetch('/api/glasses/status')
+    fetchGlassesApi('status')
       .then((r) => r.json())
       .then((d) => {
         if (d.battery) setBatteryLevel(d.battery);
@@ -120,7 +121,7 @@ export function VoiceAssistantControl() {
     // Periodic live preview refresh (1 frame every 2.5s) if streaming is active
     if (isStreaming && !isAnalyzingImage) {
       const interval = setInterval(() => {
-        setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+        setLiveGlassesFrameUrl(getGlassesCaptureUrl());
       }, 2500);
       return () => clearInterval(interval);
     }
@@ -156,14 +157,14 @@ export function VoiceAssistantControl() {
   const handleSaveGlassesIp = async () => {
     if (!tempGlassesIp.trim()) return;
     try {
-      await fetch('/api/glasses/config', {
+      await fetchGlassesApi('config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: tempGlassesIp.trim() }),
       });
       setGlassesIp(tempGlassesIp.trim());
       setShowIpSettings(false);
-      setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+      setLiveGlassesFrameUrl(getGlassesCaptureUrl());
       speak('Updated smart glasses camera address.');
     } catch (err) {
       console.error('Error saving glasses IP:', err);
@@ -196,7 +197,7 @@ export function VoiceAssistantControl() {
     }
 
     try {
-      const res = await fetch('/api/glasses/vision', {
+      const res = await fetchGlassesApi('vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,7 +242,7 @@ export function VoiceAssistantControl() {
       speak('Analyzing uploaded photo with Ollama AI.');
 
       try {
-        const res = await fetch('/api/glasses/vision', {
+        const res = await fetchGlassesApi('vision', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -504,7 +505,7 @@ export function VoiceAssistantControl() {
                       <button
                         type="button"
                         onClick={() => {
-                          setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+                          setLiveGlassesFrameUrl(getGlassesCaptureUrl());
                           speak('Refreshing glasses frame.');
                         }}
                         title="Refresh Live Camera Frame"

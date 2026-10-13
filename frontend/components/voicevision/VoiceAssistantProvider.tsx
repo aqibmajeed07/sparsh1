@@ -191,7 +191,8 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     setState('thinking');
     speak('Refreshing smart glasses view.');
     try {
-      const res = await fetch('/api/glasses/vision', {
+      const { fetchGlassesApi } = await import('@/lib/voicevision/glassesApi');
+      const res = await fetchGlassesApi('vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: 'Describe what is in front of me clearly and concisely for an inclusive learner.' }),

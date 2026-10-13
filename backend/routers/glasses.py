@@ -261,7 +261,7 @@ async def fetch_frame() -> bytes:
         raise HTTPException(503, "Glasses are not configured")
 
     try:
-        fast_timeout = httpx.Timeout(connect=1.2, read=2.0, write=1.0, pool=1.0)
+        fast_timeout = httpx.Timeout(connect=3.5, read=6.0, write=2.0, pool=2.0)
         async with httpx.AsyncClient(timeout=fast_timeout) as client:
             headers = {}
             if DEVICE_TOKEN:
@@ -280,7 +280,7 @@ async def glasses_status(user=Depends(get_current_user)):
     """Lets the assistant say 'glasses connected / not connected'."""
     if GLASSES_URL:
         try:
-            fast_timeout = httpx.Timeout(connect=1.0, read=1.5, write=1.0, pool=1.0)
+            fast_timeout = httpx.Timeout(connect=3.0, read=4.0, write=2.0, pool=2.0)
             async with httpx.AsyncClient(timeout=fast_timeout) as client:
                 headers = {}
                 if DEVICE_TOKEN:

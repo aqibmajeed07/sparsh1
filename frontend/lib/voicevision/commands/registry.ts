@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { VoiceCommand, CommandContext, CommandResult } from './types';
 import { IntentParser, ParseResult } from '../intent/parser';
 import { SpokenConfirmationManager } from './confirm';
+import { fetchGlassesApi } from '../glassesApi';
 
 export class CommandRegistry {
   private globalCommands: VoiceCommand[] = [];
@@ -353,7 +354,7 @@ export class CommandRegistry {
       handler: async (ctx) => {
         ctx.speak('Checking smart glasses connection.');
         try {
-          const res = await fetch('/api/glasses/status');
+          const res = await fetchGlassesApi('status');
           const data = await res.json();
           if (data.connected) {
             ctx.speak(`Smart glasses are connected. Battery is at ${data.battery || 100} percent.`);
@@ -396,7 +397,7 @@ export class CommandRegistry {
       handler: async (ctx) => {
         ctx.speak('Looking through your glasses now.');
         try {
-          const res = await fetch('/api/glasses/vision', {
+          const res = await fetchGlassesApi('vision', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt: 'Describe what is in front of me clearly and concisely for an inclusive learner.' }),
@@ -435,7 +436,7 @@ export class CommandRegistry {
       handler: async (ctx) => {
         ctx.speak('Reading page through your glasses.');
         try {
-          const res = await fetch('/api/glasses/vision', {
+          const res = await fetchGlassesApi('vision', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -477,7 +478,7 @@ export class CommandRegistry {
       handler: async (ctx) => {
         ctx.speak('Scanning for objects in front of you.');
         try {
-          const res = await fetch('/api/glasses/vision', {
+          const res = await fetchGlassesApi('vision', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
