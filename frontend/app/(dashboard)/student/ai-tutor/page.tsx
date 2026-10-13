@@ -351,10 +351,10 @@ export default function AccessibilityAITutorPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[600px]">
+      <div className="flex flex-col lg:flex-row gap-5 flex-1 min-h-[640px]">
 
-        {/* Left Panel: 3D ISL Avatar Connected to AI */}
-        <div className={`w-full lg:w-1/2 flex flex-col relative overflow-hidden rounded-2xl border ${themeColors.card}`}>
+        {/* Left Panel: 3D ISL Avatar Connected to AI (Expanded space for bigger avatar) */}
+        <div className={`w-full lg:w-[54%] flex flex-col relative overflow-hidden rounded-3xl border shadow-2xl ${themeColors.card}`}>
           <div className="absolute top-4 left-4 z-20 flex gap-2">
             <span className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full flex items-center gap-1 ${highContrast ? 'bg-yellow-400 text-black' : 'bg-[#6C63FF]/20 text-[#6C63FF]'}`}>
               <Eye className="w-3 h-3" /> Visual (ISL 3D Avatar)
@@ -370,20 +370,20 @@ export default function AccessibilityAITutorPage() {
           </div>
 
           {/* 3D Avatar Rendering */}
-          <div className="flex-1 w-full bg-black relative">
+          <div className="flex-1 w-full bg-black relative flex items-center justify-center">
             <SignAvatarOverlay queue={signQueue} onSignComplete={(w) => setSignQueue(q => q.slice(1))} isProcessing={isThinking} isSpeaking={isSpeaking} speakingText={speakingText} />
           </div>
 
           {/* Live Captions */}
           <div className={`p-4 min-h-[80px] flex items-center justify-center text-center border-t ${highContrast ? 'bg-black border-yellow-400' : 'bg-[#060412]/90 border-white/10'}`}>
             <p className={`text-xl font-bold ${highContrast ? 'text-yellow-400' : 'text-emerald-400'}`}>
-              {signQueue.length > 0 ? signQueue[0].toUpperCase() : isListening ? "LISTENING (Voice Commands Enabled)..." : ""}
+              {isThinking ? "PROCESSING & THINKING COMMAND....." : signQueue.length > 0 ? signQueue[0].toUpperCase() : isListening ? "LISTENING (Voice Commands Enabled)..." : ""}
             </p>
           </div>
         </div>
 
         {/* Right Panel: High Contrast Chat */}
-        <div className={`flex-1 flex flex-col min-h-0 relative rounded-2xl ${themeColors.card}`}>
+        <div className={`flex-1 min-w-[320px] flex flex-col min-h-0 relative rounded-3xl shadow-xl ${themeColors.card}`}>
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
@@ -405,11 +405,38 @@ export default function AccessibilityAITutorPage() {
                   </div>
                 </motion.div>
               ))}
+
+              {/* ── Processing Indicator Bubble when user gives command to AI ── */}
+              {isThinking && (
+                <motion.div
+                  key="ai-thinking-indicator"
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex justify-start"
+                >
+                  <div className="max-w-[85%] flex gap-3 flex-row items-center">
+                    <div className={`p-4 px-6 rounded-2xl ${themeColors.aiMsg} flex items-center gap-3 border border-[#6C63FF]/40 bg-gradient-to-r from-[#6C63FF]/20 via-[#00C9A7]/15 to-[#6C63FF]/20 shadow-xl backdrop-blur-md`}>
+                      <span className="text-sm font-bold uppercase tracking-wider text-[#00C9A7] flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-[#00C9A7] animate-spin" />
+                        Processing Command
+                      </span>
+                      {/* Animated Bouncing Dots */}
+                      <div className="flex items-center gap-1.5 ml-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#00C9A7] animate-bounce [animation-delay:-0.32s]" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#6C63FF] animate-bounce [animation-delay:-0.16s]" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-pink-400 animate-bounce" />
+                      </div>
+                      <span className="text-base font-mono font-bold text-white/70 tracking-widest animate-pulse ml-1">.....</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
             <div ref={messagesEndRef} className="h-6" />
           </div>
 
-          <div className={`p-4 border-t rounded-b-2xl ${highContrast ? 'bg-black border-yellow-400' : 'border-white/10 bg-black/20'}`}>
+          <div className={`p-4 border-t rounded-b-3xl ${highContrast ? 'bg-black border-yellow-400' : 'border-white/10 bg-black/20'}`}>
             <div className="flex items-center gap-3">
               <button onClick={toggleListen} className={`p-5 rounded-2xl transition-all shadow-lg ${isListening ? 'bg-[#ff3366] text-white animate-pulse' : (highContrast ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-white/10 text-white hover:bg-white/20')}`} title="Voice Command / Dictation">
                 {isListening ? <StopCircle className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
@@ -418,12 +445,12 @@ export default function AccessibilityAITutorPage() {
               <div className="flex-1 relative">
                 <input
                   type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={isListening ? "Say 'Open Sign Lab' or ask any question..." : "Type your message or voice command..."}
+                  placeholder={isThinking ? "Thinking & processing command....." : isListening ? "Say 'Open Sign Lab' or ask any question..." : "Type your message or voice command..."}
                   className={`w-full rounded-2xl py-5 pl-6 pr-16 text-lg transition-all focus:outline-none ${highContrast ? 'bg-[#222] border-2 border-yellow-400 text-yellow-400 placeholder-yellow-700 focus:bg-[#111]' : 'bg-white/5 border border-white/10 text-white placeholder-white/40 focus:border-[#6C63FF]/50 focus:bg-white/10'}`}
-                  disabled={isListening}
+                  disabled={isListening || isThinking}
                 />
-                <button onClick={() => handleSend()} disabled={!input.trim()} className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 ${highContrast ? 'text-yellow-400 hover:text-white disabled:opacity-50' : 'text-white/40 hover:text-[#00C9A7] disabled:opacity-50'}`}>
-                  <Send className="w-6 h-6" />
+                <button onClick={() => handleSend()} disabled={!input.trim() || isThinking} className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 ${highContrast ? 'text-yellow-400 hover:text-white disabled:opacity-50' : 'text-white/40 hover:text-[#00C9A7] disabled:opacity-50'}`}>
+                  {isThinking ? <Sparkles className="w-6 h-6 animate-spin text-[#00C9A7]" /> : <Send className="w-6 h-6" />}
                 </button>
               </div>
             </div>

@@ -370,7 +370,7 @@ function Avatar({ queue, onSignComplete, isSpeaking = false }:
   };
 
   return (
-    <group>
+    <group position={[0, -0.42, 0]} scale={1.65}>
       {/* ── ROOT SKELETON / SPINE ── */}
       <group ref={spineRef}>
         {/* Pelvis & Trouser Waistband */}
@@ -464,7 +464,7 @@ function Avatar({ queue, onSignComplete, isSpeaking = false }:
 // ═══════════════════════════════════════════════
 function CameraTarget() {
   useFrame(({ camera }) => {
-    camera.lookAt(0, 0.25, 0);
+    camera.lookAt(0, 0.32, 0);
   });
   return null;
 }
@@ -522,19 +522,20 @@ export default function SignAvatarOverlay({
       )}
 
       {isProcessing && (
-        <div className="absolute top-8 right-2.5 z-10 pointer-events-none text-yellow-300 text-[9px] flex items-center gap-1 animate-pulse">
-          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping" />
-          Processing…
+        <div className="absolute top-8 right-2.5 z-10 pointer-events-none text-yellow-300 text-xs font-bold flex items-center gap-2 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-yellow-500/60 shadow-2xl animate-pulse">
+          <span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping" />
+          <span>Processing command</span>
+          <span className="text-yellow-400 font-mono tracking-widest animate-pulse">.....</span>
         </div>
       )}
 
       {/* 3D Canvas with Auto-Recovery & Memory Optimization */}
-      <div className="flex-1 w-full h-full min-h-[350px]">
+      <div className="flex-1 w-full h-full min-h-[420px]">
         <Canvas
           key={canvasKey}
           shadows
           dpr={[1, 1.5]}
-          camera={{ position: [0, 0.45, 2.35], fov: 37, near: 0.05, far: 20 }}
+          camera={{ position: [0, 0.38, 1.75], fov: 40, near: 0.05, far: 20 }}
           gl={{
             antialias: true,
             powerPreference: 'high-performance',
