@@ -23,6 +23,8 @@ export interface VoiceAssistantContextType {
   setLastCapturedImage: (url: string | null) => void;
   refreshCameraPreview: () => Promise<void>;
   toggleListening: () => void;
+  isAlwaysListening: boolean;
+  toggleAlwaysListening: (forceState?: boolean) => void;
   executeCommand: (rawInput: string) => Promise<void>;
   speak: (text: string, onDone?: () => void) => void;
   stopAll: () => void;
@@ -42,6 +44,7 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastCapturedImage, setLastCapturedImage] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean>(true);
+  const [isAlwaysListening, setIsAlwaysListening] = useState<boolean>(false);
 
   // Core engines
   const ttsRef = useRef<SentenceChunkedTTS>(
@@ -58,6 +61,22 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
   // State refs to prevent race conditions during turn-taking
   const isSpeakingRef = useRef<boolean>(false);
   const isExecutingRef = useRef<boolean>(false);
+  const isAlwaysListeningRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isAlwaysListeningRef.current = isAlwaysListening;
+  }, [isAlwaysListening]);
+
+  // Load persisted Always-On setting
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sparsh_always_listen');
+      // Default to true for smart glasses users or if saved
+      if (saved === 'true') {
+        setIsAlwaysListening(true);
+      }
+    }
+  }, []);
 
   // ── Unified Speak Helper with turn-taking ───────────────────────────────────
   const speak = useCallback((text: string, onDone?: () => void) => {
@@ -78,17 +97,17 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     ttsRef.current.speak(text, {
       onEnd: () => {
         isSpeakingRef.current = false;
-        setState('idle');
+        setState(isAlwaysListeningRef.current ? 'listening' : 'idle');
         if (onDone) onDone();
 
-        // Resume listening if continuous listening was active
+        // Resume listening immediately
         if (recognizerRef.current) {
           recognizerRef.current.resumeAfterTTS();
         }
       },
       onError: () => {
         isSpeakingRef.current = false;
-        setState('idle');
+        setState(isAlwaysListeningRef.current ? 'listening' : 'idle');
         if (onDone) onDone();
 
         if (recognizerRef.current) {
@@ -215,7 +234,36 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     }
   }, [speak]);
 
-  // ── Toggle Listening Action ─────────────────────────────────────────────────
+  // ── Toggle Always-On Audio Listening Action ─────────────────────────────
+  const toggleAlwaysListening = useCallback((forceState?: boolean) => {
+    if (!SpeechRecognizer.isSupported()) {
+      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    setIsAlwaysListening((prev) => {
+      const nextVal = typeof forceState === 'boolean' ? forceState : !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sparsh_always_listen', String(nextVal));
+      }
+
+      if (nextVal) {
+        if (activationManagerRef.current) {
+          activationManagerRef.current.requestWakeLock();
+        }
+        recognizerRef.current?.start(true);
+        setState('listening');
+        speak('Always-on voice is active. Say "take image" or "analyse in front of me" anytime.');
+      } else {
+        recognizerRef.current?.stop();
+        setState('idle');
+        speak('Always-on voice is paused.');
+      }
+      return nextVal;
+    });
+  }, [speak]);
+
+  // ── Toggle Listening Action (Single / Push-to-Talk) ─────────────────────────
   const toggleListening = useCallback(() => {
     if (!SpeechRecognizer.isSupported()) {
       alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
@@ -276,12 +324,21 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
       },
       onEnd: () => {
         if (!isSpeakingRef.current && !isExecutingRef.current) {
-          setState('idle');
+          setState(isAlwaysListeningRef.current ? 'listening' : 'idle');
         }
       },
     });
 
     recognizerRef.current = recognizer;
+
+    // Auto-start continuous listening if Always-On mode is configured or saved
+    if (typeof window !== 'undefined' && localStorage.getItem('sparsh_always_listen') === 'true') {
+      setTimeout(() => {
+        activationManagerRef.current?.requestWakeLock();
+        recognizer.start(true);
+        setState('listening');
+      }, 600);
+    }
 
     // 2. Initialize Activation Manager
     const activation = new ActivationManager({
@@ -312,6 +369,8 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
         setLastCapturedImage,
         refreshCameraPreview,
         toggleListening,
+        isAlwaysListening,
+        toggleAlwaysListening,
         executeCommand,
         speak,
         stopAll,

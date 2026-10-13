@@ -168,12 +168,15 @@ export class IntentParser {
     const union = new Set([...Array.from(inputTokens), ...Array.from(phraseTokens)]).size;
     const jaccard = overlap / union;
 
-    // Bonus if key action verbs match (e.g., "open", "read", "join", "pause")
-    const actionWords = ['open', 'read', 'join', 'start', 'play', 'pause', 'stop', 'submit', 'explain'];
+    // Bonus if key action verbs match (e.g., "open", "read", "take", "analyse", "capture")
+    const actionWords = [
+      'open', 'read', 'join', 'start', 'play', 'pause', 'stop', 'submit', 'explain',
+      'take', 'snap', 'capture', 'click', 'analyse', 'analyze', 'look', 'describe', 'see', 'photo', 'image'
+    ];
     let actionBonus = 0;
     for (const act of actionWords) {
       if (inputTokens.has(act) && phraseTokens.has(act)) {
-        actionBonus = 0.15;
+        actionBonus = 0.25;
         break;
       }
     }

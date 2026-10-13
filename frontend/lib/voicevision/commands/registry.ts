@@ -369,10 +369,43 @@ export class CommandRegistry {
       },
     });
 
-    // Smart Glasses Camera: Describe Scene
+    // Smart Glasses Camera: Describe Scene / Voice-Triggered Snapshot
     this.registerGlobalCommand({
       id: 'glasses-describe',
       phrases: [
+        'take image',
+        'take an image',
+        'take a image',
+        'capture image',
+        'capture the image',
+        'take photo',
+        'take a photo',
+        'capture photo',
+        'snap image',
+        'snap photo',
+        'click photo',
+        'click picture',
+        'click image',
+        'take picture',
+        'take a picture',
+        'analyse in front of me',
+        'analyze in front of me',
+        'analyse what is in front of me',
+        'analyze what is in front of me',
+        'analyse in front',
+        'analyze in front',
+        'what is in front of me',
+        'what is in front',
+        'describe what is in front of me',
+        'describe in front of me',
+        'describe scene',
+        'what do you see',
+        'look in front of me',
+        'look in front',
+        'look through glasses',
+        'see for me',
+        'tell me what is in front of me',
+        'what am i looking at',
         'hello sparsh',
         'hey sparsh',
         'hi sparsh',
@@ -380,22 +413,15 @@ export class CommandRegistry {
         'ok sparsh',
         'smart glasses',
         'glasses',
-        'describe what is in front of me',
-        'what is in front of me',
-        'describe scene',
-        'what do you see',
-        'look in front of me',
-        'look through glasses',
-        'see for me',
-        'tell me what is in front of me',
-        'take photo',
-        'snap photo',
-        'what am i looking at',
       ],
-      description: 'Captures camera view from glasses and describes the scene',
+      description: 'Takes a camera snapshot from glasses and analyzes what is in front of the student',
       scope: 'global',
       handler: async (ctx) => {
-        ctx.speak('Looking through your glasses now.');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sparsh:glasses-vision-start', { detail: { mode: 'describe' } }));
+        }
+        ctx.speak('Capturing image and analyzing what is in front of you.');
+
         try {
           const res = await fetchGlassesApi('vision', {
             method: 'POST',
@@ -416,25 +442,46 @@ export class CommandRegistry {
           if (data.image_url && ctx.setCapturedImage) {
             ctx.setCapturedImage(data.image_url);
           }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sparsh:glasses-vision-result', { detail: data }));
+          }
+
           if (data.description) {
             ctx.speak(data.description);
           } else {
             ctx.speak('Could not identify the scene in front of you.');
           }
         } catch {
-          ctx.speak('Glasses are not connected.');
+          ctx.speak('Glasses camera is not reachable.');
         }
       },
     });
 
-    // Smart Glasses Camera: Read Page / Document
+    // Smart Glasses Camera: Read Page / Document / OCR
     this.registerGlobalCommand({
       id: 'glasses-read-page',
-      phrases: ['read this page', 'read the page in front of me', 'read book in front of me', 'read document', 'read paper'],
+      phrases: [
+        'read this page',
+        'read the page in front of me',
+        'read book in front of me',
+        'read document',
+        'read paper',
+        'read in front of me',
+        'read what is in front of me',
+        'read this',
+        'read text',
+        'read page',
+        'read book',
+        'transcribe text',
+      ],
       description: 'Reads printed or handwritten text visible in front of glasses',
       scope: 'global',
       handler: async (ctx) => {
-        ctx.speak('Reading page through your glasses.');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sparsh:glasses-vision-start', { detail: { mode: 'read' } }));
+        }
+        ctx.speak('Reading text in front of your glasses.');
+
         try {
           const res = await fetchGlassesApi('vision', {
             method: 'POST',
@@ -458,6 +505,10 @@ export class CommandRegistry {
           if (data.image_url && ctx.setCapturedImage) {
             ctx.setCapturedImage(data.image_url);
           }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sparsh:glasses-vision-result', { detail: data }));
+          }
+
           if (data.description) {
             ctx.tts.speak(data.description);
           } else {

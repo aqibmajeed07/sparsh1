@@ -42,6 +42,8 @@ export function VoiceAssistantControl() {
     setLastCapturedImage,
     refreshCameraPreview,
     toggleListening,
+    isAlwaysListening,
+    toggleAlwaysListening,
     executeCommand,
     speak,
     stopAll,
@@ -57,7 +59,8 @@ export function VoiceAssistantControl() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Smart Glasses Live Camera & Streaming State ──
-  const [isStreaming, setIsStreaming] = useState<boolean>(true);
+  // Default isStreaming to false (On-Demand / Voice Snapshot Mode) to prevent Wi-Fi bandwidth choking & frame lag!
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [liveGlassesFrameUrl, setLiveGlassesFrameUrl] = useState<string>(getGlassesCaptureUrl());
   const [glassesIp, setGlassesIp] = useState<string>('http://10.157.174.6');
   const [tempGlassesIp, setTempGlassesIp] = useState<string>('http://10.157.174.6');
@@ -66,12 +69,38 @@ export function VoiceAssistantControl() {
   const [isGlassesConnected, setIsGlassesConnected] = useState<boolean>(false);
   const [copiedTranscription, setCopiedTranscription] = useState<boolean>(false);
 
+  // Listen for voice-triggered smart glasses snapshot events ("take image", "analyse in front of me")
+  useEffect(() => {
+    const handleVisionStart = () => {
+      setIsOpen(true);
+      setActiveTab('glasses');
+      setIsAnalyzingImage(true);
+    };
+
+    const handleVisionResult = (e: any) => {
+      const data = e.detail;
+      setIsAnalyzingImage(false);
+      if (data?.image_url) {
+        setLiveGlassesFrameUrl(data.image_url);
+        setLastCapturedImage(data.image_url);
+      }
+      if (data?.description || data?.text) {
+        setVisionTranscription(data.description || data.text);
+      }
+    };
+
+    window.addEventListener('sparsh:glasses-vision-start', handleVisionStart);
+    window.addEventListener('sparsh:glasses-vision-result', handleVisionResult);
+
+    return () => {
+      window.removeEventListener('sparsh:glasses-vision-start', handleVisionStart);
+      window.removeEventListener('sparsh:glasses-vision-result', handleVisionResult);
+    };
+  }, [setLastCapturedImage]);
+
   // Smart Glasses Live WiFi Feed & Status Management
   useEffect(() => {
     if (!isOpen || activeTab !== 'glasses') return;
-
-    // Initial frame refresh immediately upon opening tab
-    setLiveGlassesFrameUrl(getGlassesCaptureUrl());
 
     // Check connection & battery from backend
     fetchGlassesApi('status')
@@ -86,7 +115,7 @@ export function VoiceAssistantControl() {
       })
       .catch(() => {});
 
-    // Periodic live preview refresh (1 frame every 2.5s) if streaming is active
+    // Periodic live preview refresh ONLY if user explicitly enabled continuous streaming
     if (isStreaming && !isAnalyzingImage) {
       const interval = setInterval(() => {
         setLiveGlassesFrameUrl(getGlassesCaptureUrl());
@@ -418,7 +447,7 @@ export function VoiceAssistantControl() {
             {activeTab === 'glasses' && (
               <div className="space-y-3">
                 {/* Smart Glasses Camera Title & Refresh Controls */}
-                <div className="flex items-center justify-between text-xs bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/10">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/10">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="font-bold text-white text-[12px] flex items-center gap-1.5">
@@ -428,7 +457,39 @@ export function VoiceAssistantControl() {
                   </div>
 
                   {/* Settings & Refresh Controls */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
+                    {/* Always-On Audio Listening Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => toggleAlwaysListening()}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                        isAlwaysListening
+                          ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 shadow-sm shadow-rose-500/20'
+                          : 'bg-white/10 text-white/70 hover:text-white border border-white/10'
+                      }`}
+                      title="Toggle Always-On Audio: keep microphone listening continuously for 'take image' or 'analyse in front of me'"
+                    >
+                      <Mic className={`w-3 h-3 ${isAlwaysListening ? 'text-rose-400 animate-pulse' : 'text-white/60'}`} />
+                      {isAlwaysListening ? 'Voice Always On' : 'Voice Standby'}
+                    </button>
+
+                    {/* Mode Toggle: Fast Voice Snap (Zero-Lag) vs Continuous Stream */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsStreaming(!isStreaming);
+                        speak(!isStreaming ? 'Continuous camera stream enabled.' : 'Fast voice snapshot zero lag mode enabled.');
+                      }}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition cursor-pointer ${
+                        isStreaming
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      }`}
+                      title={isStreaming ? 'Polling every 2.5s (causes Wi-Fi lag)' : 'On-Demand Voice Snap (Zero lag)'}
+                    >
+                      {isStreaming ? 'Stream (2.5s)' : '⚡ Fast Snap (Zero-Lag)'}
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -436,7 +497,7 @@ export function VoiceAssistantControl() {
                         speak('Refreshing glasses frame.');
                       }}
                       title="Refresh Live Camera Frame"
-                      className="p-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
+                      className="p-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                     </button>
@@ -444,13 +505,26 @@ export function VoiceAssistantControl() {
                       type="button"
                       onClick={() => setShowIpSettings(!showIpSettings)}
                       title="Glasses Network Settings"
-                      className={`p-1 rounded-lg transition ${
+                      className={`p-1 rounded-lg transition cursor-pointer ${
                         showIpSettings ? 'bg-[#6C63FF] text-white' : 'text-white/70 hover:text-white hover:bg-white/10'
                       }`}
                     >
                       <Settings2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                </div>
+
+                {/* Voice Trigger Guide Banner */}
+                <div className="bg-gradient-to-r from-purple-500/15 via-teal-500/15 to-indigo-500/15 border border-white/15 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#00C9A7] animate-ping" />
+                    <span className="text-white/95 text-[11px]">
+                      Just say: <span className="text-[#00C9A7] font-bold">"Take image"</span> or <span className="text-[#A5B4FC] font-bold">"Analyse in front of me"</span>
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-white/60 bg-white/10 px-2 py-0.5 rounded-md font-mono">
+                    {isAlwaysListening ? '🎙️ Mic Active' : 'Tap Voice to Start'}
+                  </span>
                 </div>
 
                 {/* Optional IP Settings Drawer */}

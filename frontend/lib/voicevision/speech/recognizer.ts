@@ -205,8 +205,8 @@ export class SpeechRecognizer {
           case 'no-speech':
             userMessage = 'No speech heard.';
             this.consecutiveNoSpeechCount++;
-            if (this.consecutiveNoSpeechCount > 4) {
-              // Pause loop after 5 silent intervals to avoid draining CPU/battery
+            // When in continuous listeningMode (Always-On Audio), never stop on silence:
+            if (!this.listeningMode && this.consecutiveNoSpeechCount > 4) {
               shouldStop = true;
             }
             break;
@@ -229,11 +229,11 @@ export class SpeechRecognizer {
         if (
           this.listeningMode &&
           !this.isPausedForTTS &&
-          this.consecutiveNoSpeechCount <= 4 &&
           typeof document !== 'undefined' &&
           document.visibilityState === 'visible'
         ) {
-          this.scheduleRestart(350);
+          // Restart quickly so the assistant is always ready to hear the next command
+          this.scheduleRestart(250);
         } else {
           this.callbacks.onEnd?.();
         }
