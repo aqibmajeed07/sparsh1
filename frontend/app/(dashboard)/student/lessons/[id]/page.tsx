@@ -220,7 +220,7 @@ export default function LessonPlayerPage() {
         const textToExplain = lesson?.accessible_summary || lesson?.title || 'Science';
         ctx.speak('Asking AI Doubt Solver for a simplified explanation.');
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/doubt-solver`, {
+          const res = await fetch('/api/doubt-solver', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: textToExplain })
@@ -497,7 +497,7 @@ export default function LessonPlayerPage() {
                     onClick={async () => {
                       const textToExplain = lesson.accessible_summary || lesson.title;
                       try {
-                        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000'}/api/doubt-solver`, {
+                        const res = await fetch('/api/doubt-solver', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ text: textToExplain })

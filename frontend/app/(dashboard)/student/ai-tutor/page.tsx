@@ -205,7 +205,7 @@ export default function AccessibilityAITutorPage() {
     }
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/ai-tutor/chat', {
+      const res = await fetch('/api/ai-tutor/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, language: currentLang.code, detailed: isDetailedMode })
