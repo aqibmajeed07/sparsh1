@@ -472,9 +472,8 @@ void handleIncomingCommand(String cmd) {
 
 class CharacteristicCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* pCharacteristic) {
-    std::string rxVal = pCharacteristic->getValue();
-    if (rxVal.length() > 0) {
-      String cmd = String(rxVal.c_str());
+    String cmd = pCharacteristic->getValue().c_str();
+    if (cmd.length() > 0) {
       handleIncomingCommand(cmd);
     }
   }

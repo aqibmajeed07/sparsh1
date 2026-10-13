@@ -259,9 +259,8 @@ class SenseBandServerCallbacks : public BLEServerCallbacks {
 // Callback fires when the app WRITES a value to the characteristic
 class CommandCharacteristicCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* pCharacteristic) override {
-    std::string rawValue = pCharacteristic->getValue();
-    if (rawValue.length() > 0) {
-      String cmd = String(rawValue.c_str());
+    String cmd = pCharacteristic->getValue().c_str();
+    if (cmd.length() > 0) {
       dispatchCommand(cmd);
     }
   }
