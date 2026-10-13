@@ -15,6 +15,51 @@ import {
   useAvatarMaterials, CartoonFace, Hand, Leg, AvatarHair, WristWatch
 } from './AvatarBody';
 
+export type AvatarFramingMode = 'waist' | 'closeup' | 'full';
+
+export interface FramingConfig {
+  scale: number;
+  posY: number;
+  camPos: [number, number, number];
+  camTargetY: number;
+  fov: number;
+  label: string;
+  badge: string;
+}
+
+export const FRAMING_CONFIGS: Record<AvatarFramingMode, FramingConfig> = {
+  // Default: Big & Grounded towards bottom of screen (Waist-Up view)
+  waist: {
+    scale: 1.95,
+    posY: -0.80,
+    camPos: [0, 0.22, 2.40],
+    camTargetY: 0.20,
+    fov: 42,
+    label: 'Big (Bottom)',
+    badge: '🧘 Grounded Waist-Up',
+  },
+  // Close-up: Extra Large Bust / Chest view
+  closeup: {
+    scale: 2.45,
+    posY: -1.08,
+    camPos: [0, 0.28, 2.30],
+    camTargetY: 0.26,
+    fov: 40,
+    label: 'Close-Up',
+    badge: '👤 Chest Close-Up',
+  },
+  // Full: Full Body view
+  full: {
+    scale: 1.40,
+    posY: -0.42,
+    camPos: [0, 0.28, 2.75],
+    camTargetY: 0.22,
+    fov: 46,
+    label: 'Full Body',
+    badge: '🧍 Full View',
+  },
+};
+
 export interface SignAvatarOverlayProps {
   queue: string[];
   onSignComplete: (word: string) => void;
@@ -23,6 +68,9 @@ export interface SignAvatarOverlayProps {
   isProcessing?: boolean;
   isSpeaking?: boolean;
   speakingText?: string;
+  framing?: AvatarFramingMode;
+  showFramingToggle?: boolean;
+  showIslBadge?: boolean;
 }
 
 // ── Smooth Anatomical Quaternion Interpolation with Easing ──
@@ -39,8 +87,18 @@ function slerp(obj: THREE.Object3D, rot: BoneRotation, alpha: number) {
 // ═══════════════════════════════════════════════
 // HUMANIZED AVATAR COMPONENT WITH DYNAMIC FINGER MOVEMENT
 // ═══════════════════════════════════════════════
-function Avatar({ queue, onSignComplete, isSpeaking = false }:
-  Pick<SignAvatarOverlayProps, 'queue' | 'onSignComplete' | 'isSpeaking'>) {
+interface AvatarInternalProps extends Pick<SignAvatarOverlayProps, 'queue' | 'onSignComplete' | 'isSpeaking'> {
+  scale?: number;
+  posY?: number;
+}
+
+function Avatar({
+  queue,
+  onSignComplete,
+  isSpeaking = false,
+  scale = 1.95,
+  posY = -0.80,
+}: AvatarInternalProps) {
   const mat = useAvatarMaterials();
 
   // ── Anatomical Bone Refs ──
@@ -370,7 +428,7 @@ function Avatar({ queue, onSignComplete, isSpeaking = false }:
   };
 
   return (
-    <group position={[0, -0.42, 0]} scale={1.65}>
+    <group position={[0, posY, 0]} scale={scale}>
       {/* ── ROOT SKELETON / SPINE ── */}
       <group ref={spineRef}>
         {/* Pelvis & Trouser Waistband */}
@@ -462,9 +520,9 @@ function Avatar({ queue, onSignComplete, isSpeaking = false }:
 // ═══════════════════════════════════════════════
 // CAMERA LOCK & CINEMATIC VIEW
 // ═══════════════════════════════════════════════
-function CameraTarget() {
+function CameraTarget({ targetY = 0.20 }: { targetY?: number }) {
   useFrame(({ camera }) => {
-    camera.lookAt(0, 0.32, 0);
+    camera.lookAt(0, targetY, 0);
   });
   return null;
 }
@@ -478,64 +536,85 @@ export default function SignAvatarOverlay({
   className,
   isProcessing,
   isSpeaking,
+  framing = 'waist',
+  showFramingToggle = true,
+  showIslBadge = true,
 }: SignAvatarOverlayProps) {
   const [canvasKey, setCanvasKey] = useState(0);
+  const [framingMode, setFramingMode] = useState<AvatarFramingMode>(framing);
+
+  useEffect(() => {
+    if (framing) setFramingMode(framing);
+  }, [framing]);
+
+  const config = FRAMING_CONFIGS[framingMode] || FRAMING_CONFIGS.waist;
 
   return (
     <div
-      className={`relative flex flex-col bg-gradient-to-b from-[#0B0F19] via-[#090C15] to-[#04060C] border border-white/10 rounded-2xl overflow-hidden shadow-2xl ${className ?? ''
-        }`}
+      className={`relative flex flex-col w-full h-full flex-1 bg-gradient-to-b from-[#0B0F19] via-[#090C15] to-[#04060C] border border-white/10 rounded-2xl overflow-hidden shadow-2xl ${
+        className ?? ''
+      }`}
     >
-      {/* Live ISL Badge */}
-      <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none flex items-center gap-1.5 bg-[#6C63FF]/25 border border-[#6C63FF]/40 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider text-[#A5B4FC]">
-        <span
-          className={`w-1.5 h-1.5 rounded-full ${queue.length > 0 ? 'bg-[#6C63FF] animate-pulse' : 'bg-emerald-400'
-            }`}
-        />
-        ISL Articulated Avatar
-      </div>
-
-      {/* AI Quality Badge */}
-      <div className="absolute top-2.5 right-2.5 z-10 pointer-events-none">
-        <span className="bg-gradient-to-r from-[#4F46E5] to-[#10B981] text-white text-[9px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-lg shadow-lg">
-          ✨ Hyper-Realistic AI
-        </span>
-      </div>
-
-      {/* Speaking Indicator */}
-      {isSpeaking && (
-        <div className="absolute top-9 right-2.5 z-10 pointer-events-none flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-md border border-emerald-500/30">
-          <div className="flex gap-0.5">
-            {[0, 1, 2, 3].map(i => (
-              <span
-                key={i}
-                className="w-0.5 bg-emerald-400 rounded-full animate-pulse"
-                style={{
-                  height: `${6 + Math.random() * 8}px`,
-                  animationDelay: `${i * 0.15}s`,
-                }}
-              />
-            ))}
+      {/* Top Header Controls & Badges */}
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-10 flex items-center justify-between pointer-events-none gap-2">
+        {/* Left: Live ISL Badge */}
+        {showIslBadge ? (
+          <div className="flex items-center gap-1.5 bg-[#6C63FF]/25 border border-[#6C63FF]/40 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider text-[#A5B4FC]">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                queue.length > 0 ? 'bg-[#6C63FF] animate-pulse' : 'bg-emerald-400'
+              }`}
+            />
+            ISL Articulated Avatar
           </div>
-          <span className="text-emerald-400 text-[9px] font-bold">Speaking</span>
-        </div>
-      )}
+        ) : <div />}
 
-      {isProcessing && (
-        <div className="absolute top-8 right-2.5 z-10 pointer-events-none text-yellow-300 text-xs font-bold flex items-center gap-2 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-yellow-500/60 shadow-2xl animate-pulse">
-          <span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping" />
-          <span>Processing command</span>
-          <span className="text-yellow-400 font-mono tracking-widest animate-pulse">.....</span>
+        {/* Right: Processing, Speaking, AI Quality */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {isProcessing && (
+            <div className="text-yellow-300 text-xs font-bold flex items-center gap-2 bg-black/85 backdrop-blur-md px-3 py-1 rounded-full border border-yellow-500/60 shadow-2xl animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping" />
+              <span>Processing command</span>
+              <span className="text-yellow-400 font-mono tracking-widest animate-pulse">.....</span>
+            </div>
+          )}
+
+          {isSpeaking && (
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-md border border-emerald-500/30">
+              <div className="flex gap-0.5">
+                {[0, 1, 2, 3].map(i => (
+                  <span
+                    key={i}
+                    className="w-0.5 bg-emerald-400 rounded-full animate-pulse"
+                    style={{
+                      height: `${6 + Math.random() * 8}px`,
+                      animationDelay: `${i * 0.15}s`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-emerald-400 text-[10px] font-bold">Speaking</span>
+            </div>
+          )}
+
+          <span className="bg-gradient-to-r from-[#4F46E5] to-[#10B981] text-white text-[9px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-lg shadow-lg">
+            ✨ Hyper-Realistic AI
+          </span>
         </div>
-      )}
+      </div>
 
       {/* 3D Canvas with Auto-Recovery & Memory Optimization */}
-      <div className="flex-1 w-full h-full min-h-[420px]">
+      <div className="flex-1 w-full h-full min-h-[460px] relative">
         <Canvas
-          key={canvasKey}
+          key={`${canvasKey}-${framingMode}`}
           shadows
           dpr={[1, 1.5]}
-          camera={{ position: [0, 0.38, 1.75], fov: 40, near: 0.05, far: 20 }}
+          camera={{
+            position: config.camPos,
+            fov: config.fov,
+            near: 0.05,
+            far: 20,
+          }}
           gl={{
             antialias: true,
             powerPreference: 'high-performance',
@@ -559,7 +638,7 @@ export default function SignAvatarOverlay({
             dom.addEventListener('webglcontextrestored', handleContextRestored, false);
           }}
         >
-          <CameraTarget />
+          <CameraTarget targetY={config.camTargetY} />
 
           {/* Studio Lighting */}
           <ambientLight intensity={0.55} color="#E2E8F0" />
@@ -583,23 +662,30 @@ export default function SignAvatarOverlay({
           <Environment preset="studio" />
 
           <React.Suspense fallback={null}>
-            <Avatar queue={queue} onSignComplete={onSignComplete} isSpeaking={isSpeaking} />
+            <Avatar
+              queue={queue}
+              onSignComplete={onSignComplete}
+              isSpeaking={isSpeaking}
+              scale={config.scale}
+              posY={config.posY}
+            />
           </React.Suspense>
 
           <ContactShadows
-            position={[0, -0.95, 0]}
-            opacity={0.6}
-            scale={3.2}
-            blur={2.2}
+            position={[0, config.posY - 0.05, 0]}
+            opacity={0.55}
+            scale={3.6}
+            blur={2.4}
             resolution={512}
             color="#1E1B4B"
           />
         </Canvas>
       </div>
 
-      {/* Sign Queue Bar */}
-      <div className="shrink-0 px-3 py-2 bg-[#04060C]/90 backdrop-blur border-t border-white/5">
-        <div className="flex gap-1.5 flex-wrap min-h-[22px] items-center">
+      {/* Sign Queue Bar + Framing Preset Controls */}
+      <div className="shrink-0 px-3 py-2 bg-[#04060C]/90 backdrop-blur border-t border-white/5 flex items-center justify-between gap-3">
+        {/* Left: Current Signing Queue */}
+        <div className="flex gap-1.5 flex-wrap min-h-[22px] items-center flex-1">
           {queue.length > 0 ? (
             <>
               <span className="text-emerald-400 text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 animate-pulse">
@@ -618,6 +704,27 @@ export default function SignAvatarOverlay({
             <span className="text-white/25 text-xs italic">Waiting for speech…</span>
           )}
         </div>
+
+        {/* Right: Framing Presets (Big Grounded, Close-Up, Full) */}
+        {showFramingToggle !== false && (
+          <div className="flex items-center gap-1 bg-black/60 border border-white/10 p-0.5 rounded-xl shrink-0">
+            {(['waist', 'closeup', 'full'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setFramingMode(mode)}
+                title={FRAMING_CONFIGS[mode].badge}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 ${
+                  framingMode === mode
+                    ? 'bg-[#6C63FF] text-white shadow-md'
+                    : 'text-white/50 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span>{FRAMING_CONFIGS[mode].label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

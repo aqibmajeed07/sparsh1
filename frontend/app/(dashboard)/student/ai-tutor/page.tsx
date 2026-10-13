@@ -369,9 +369,17 @@ export default function AccessibilityAITutorPage() {
             )}
           </div>
 
-          {/* 3D Avatar Rendering */}
-          <div className="flex-1 w-full bg-black relative flex items-center justify-center">
-            <SignAvatarOverlay queue={signQueue} onSignComplete={(w) => setSignQueue(q => q.slice(1))} isProcessing={isThinking} isSpeaking={isSpeaking} speakingText={speakingText} />
+          {/* 3D Avatar Rendering (Grounded at bottom of half screen, enlarged waist-up view) */}
+          <div className="flex-1 w-full bg-black relative flex flex-col overflow-hidden min-h-[480px]">
+            <SignAvatarOverlay
+              queue={signQueue}
+              onSignComplete={(w) => setSignQueue(q => q.slice(1))}
+              isProcessing={isThinking}
+              isSpeaking={isSpeaking}
+              speakingText={speakingText}
+              showIslBadge={false}
+              className="w-full h-full flex-1 rounded-none border-0"
+            />
           </div>
 
           {/* Live Captions */}
