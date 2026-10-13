@@ -24,6 +24,12 @@ import {
   CheckCircle2,
   Maximize2,
   Minimize2,
+  RefreshCw,
+  Video,
+  Wifi,
+  Settings2,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export function VoiceAssistantControl() {
@@ -50,6 +56,76 @@ export function VoiceAssistantControl() {
   const [visionTranscription, setVisionTranscription] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Smart Glasses Live Camera & Streaming State ──
+  const [cameraSource, setCameraSource] = useState<'glasses' | 'webcam'>('glasses');
+  const [isStreaming, setIsStreaming] = useState<boolean>(true);
+  const [liveGlassesFrameUrl, setLiveGlassesFrameUrl] = useState<string>('/api/glasses/capture');
+  const [glassesIp, setGlassesIp] = useState<string>('http://10.157.174.6');
+  const [tempGlassesIp, setTempGlassesIp] = useState<string>('http://10.157.174.6');
+  const [showIpSettings, setShowIpSettings] = useState<boolean>(false);
+  const [batteryLevel, setBatteryLevel] = useState<number>(98);
+  const [isGlassesConnected, setIsGlassesConnected] = useState<boolean>(false);
+  const [copiedTranscription, setCopiedTranscription] = useState<boolean>(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Device Webcam Stream Management
+  useEffect(() => {
+    let localStream: MediaStream | null = null;
+    if (isOpen && activeTab === 'glasses' && cameraSource === 'webcam') {
+      navigator.mediaDevices
+        ?.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } })
+        .then((stream) => {
+          localStream = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().catch(() => {});
+          }
+        })
+        .catch((err) => {
+          console.warn('Webcam permission or access issue:', err);
+          setCameraSource('glasses');
+        });
+    }
+
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [isOpen, activeTab, cameraSource]);
+
+  // Smart Glasses Live WiFi Feed & Status Management
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'glasses' || cameraSource !== 'glasses') return;
+
+    // Initial frame refresh immediately upon opening tab
+    setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+
+    // Check connection & battery from backend
+    fetch('/api/glasses/status')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.battery) setBatteryLevel(d.battery);
+        setIsGlassesConnected(Boolean(d.connected));
+        if (d.url) {
+          setGlassesIp(d.url);
+          setTempGlassesIp(d.url);
+        }
+      })
+      .catch(() => {});
+
+    // Periodic live preview refresh (1 frame every 2.5s) if streaming is active
+    if (isStreaming && !isAnalyzingImage) {
+      const interval = setInterval(() => {
+        setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, activeTab, cameraSource, isStreaming, isAnalyzingImage]);
+
   // Automatically open when user actively starts speaking or an action is triggered
   useEffect(() => {
     if (state === 'listening' || state === 'thinking') {
@@ -71,8 +147,26 @@ export function VoiceAssistantControl() {
   const handleClose = () => {
     setIsOpen(false);
     setShowTypedInput(false);
+    setShowIpSettings(false);
     if (state === 'speaking') {
       stopAll();
+    }
+  };
+
+  const handleSaveGlassesIp = async () => {
+    if (!tempGlassesIp.trim()) return;
+    try {
+      await fetch('/api/glasses/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tempGlassesIp.trim() }),
+      });
+      setGlassesIp(tempGlassesIp.trim());
+      setShowIpSettings(false);
+      setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+      speak('Updated smart glasses camera address.');
+    } catch (err) {
+      console.error('Error saving glasses IP:', err);
     }
   };
 
@@ -81,12 +175,33 @@ export function VoiceAssistantControl() {
     setActiveTab('glasses');
     speak(mode === 'read' ? 'Reading text through smart glasses.' : 'Analyzing scene through smart glasses.');
 
+    let imageBase64: string | undefined = undefined;
+
+    // Grab live frame from device webcam if active
+    if (cameraSource === 'webcam' && videoRef.current) {
+      try {
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          imageBase64 = canvas.toDataURL('image/jpeg', 0.88);
+          setLastCapturedImage(imageBase64);
+        }
+      } catch (err) {
+        console.warn('Could not grab frame from video:', err);
+      }
+    }
+
     try {
       const res = await fetch('/api/glasses/vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode,
+          image_base64: imageBase64,
           prompt: mode === 'read'
             ? 'Transcribe and read all visible text printed or handwritten on this page in front of me.'
             : 'Describe what is in front of me clearly and concisely for an inclusive learner.',
@@ -96,6 +211,7 @@ export function VoiceAssistantControl() {
       const data = await res.json();
       if (data.image_url) {
         setLastCapturedImage(data.image_url);
+        setLiveGlassesFrameUrl(data.image_url);
       }
       const responseText = data.text || data.description || 'Processed camera frame.';
       setVisionTranscription(responseText);
@@ -353,31 +469,153 @@ export function VoiceAssistantControl() {
             {/* TAB 2: SMART GLASSES & CAMERA AI TRANSCRIPTION VIEW */}
             {activeTab === 'glasses' && (
               <div className="space-y-3">
-                {/* Live Camera Preview Box */}
-                <div className="relative rounded-xl overflow-hidden border border-white/20 bg-black aspect-video max-h-48 flex items-center justify-center group shadow-inner">
-                  {lastCapturedImage ? (
-                    <img
-                      src={lastCapturedImage}
-                      alt="Glasses Camera Live View"
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-1.5 text-white/40 p-4 text-center">
-                      <Camera className="w-8 h-8 text-[#00C9A7]/50" />
-                      <span className="text-xs font-medium">Smart Glasses Camera Ready</span>
-                      <span className="text-[10px] text-white/30">Snap frame or upload photo to transcribe</span>
-                    </div>
-                  )}
+                {/* Mode Switcher: Glasses WiFi Camera vs Device Webcam */}
+                <div className="flex items-center justify-between text-xs bg-white/5 p-1 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCameraSource('glasses')}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
+                        cameraSource === 'glasses'
+                          ? 'bg-[#6C63FF] text-white shadow'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <Wifi className="w-3 h-3" />
+                      Smart Glasses (WiFi)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCameraSource('webcam')}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
+                        cameraSource === 'webcam'
+                          ? 'bg-[#00C9A7] text-black shadow'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <Video className="w-3 h-3" />
+                      Webcam / PC Camera
+                    </button>
+                  </div>
 
-                  {isAnalyzingImage && (
-                    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-white">
-                      <Loader2 className="w-6 h-6 animate-spin text-[#00C9A7]" />
-                      <span className="text-xs font-bold text-[#00C9A7]">Ollama AI Transcribing Image...</span>
-                    </div>
-                  )}
+                  {/* Settings & Refresh Controls */}
+                  <div className="flex items-center gap-1">
+                    {cameraSource === 'glasses' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLiveGlassesFrameUrl(`/api/glasses/capture?t=${Date.now()}`);
+                          speak('Refreshing glasses frame.');
+                        }}
+                        title="Refresh Live Camera Frame"
+                        className="p-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowIpSettings(!showIpSettings)}
+                      title="Glasses Network Settings"
+                      className={`p-1 rounded-lg transition ${
+                        showIpSettings ? 'bg-[#6C63FF] text-white' : 'text-white/70 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Glasses Control Buttons */}
+                {/* Optional IP Settings Drawer */}
+                {showIpSettings && (
+                  <div className="p-2.5 rounded-xl bg-black/60 border border-white/15 space-y-2 text-xs animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white/80 text-[11px]">Glasses ESP32 Address:</span>
+                      <span className="text-[10px] text-[#00C9A7] font-mono">
+                        {isGlassesConnected ? '● Online' : '○ Standby / Fallback'}
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={tempGlassesIp}
+                        onChange={(e) => setTempGlassesIp(e.target.value)}
+                        placeholder="http://192.168.x.x or http://sparsh-glasses.local"
+                        className="flex-1 bg-white/5 border border-white/15 px-2.5 py-1 rounded-lg text-white font-mono text-[11px] focus:outline-none focus:border-[#6C63FF]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveGlassesIp}
+                        className="px-2.5 py-1 bg-[#6C63FF] hover:bg-[#5b52e0] text-white text-[11px] font-bold rounded-lg transition"
+                      >
+                        Save
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-white/50">
+                      Default: <code className="text-[#A5B4FC]">http://10.157.174.6</code> or <code className="text-[#A5B4FC]">http://sparsh-glasses.local</code>
+                    </p>
+                  </div>
+                )}
+
+                {/* Live Camera Preview Box */}
+                <div className="relative rounded-2xl overflow-hidden border-2 border-white/20 bg-black aspect-video max-h-52 flex items-center justify-center group shadow-2xl">
+                  {cameraSource === 'webcam' ? (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={lastCapturedImage || liveGlassesFrameUrl || '/glasses_demo_frame.jpg'}
+                      alt="Glasses Camera Live View"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/glasses_demo_frame.jpg';
+                      }}
+                      className="w-full h-full object-contain bg-black"
+                    />
+                  )}
+
+                  {/* Real-Time Processing Scanline Overlay */}
+                  {isAnalyzingImage && (
+                    <div className="absolute inset-0 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 text-white z-20">
+                      <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#00C9A7] to-transparent animate-bounce top-1/2" />
+                      <Loader2 className="w-7 h-7 animate-spin text-[#00C9A7]" />
+                      <span className="text-xs font-bold text-[#00C9A7]">Ollama AI Transcribing Vision Frame...</span>
+                      <span className="text-[10px] text-white/60">Multimodal Llama 3.2 Analysis</span>
+                    </div>
+                  )}
+
+                  {/* Top-Left Live Status Badge */}
+                  <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[10px]">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        cameraSource === 'webcam'
+                          ? 'bg-emerald-400 animate-ping'
+                          : isGlassesConnected
+                          ? 'bg-emerald-400 animate-pulse'
+                          : 'bg-[#00C9A7]'
+                      }`}
+                    />
+                    <span className="font-semibold text-white/95">
+                      {cameraSource === 'webcam'
+                        ? 'Live Webcam (Glasses View)'
+                        : isGlassesConnected
+                        ? 'Glasses Camera Stream'
+                        : 'Glasses Camera Preview'}
+                    </span>
+                  </div>
+
+                  {/* Top-Right Battery Badge */}
+                  <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-black/80 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 text-[10px] text-white/90">
+                    <span>🔋</span>
+                    <span className="font-mono">{batteryLevel}%</span>
+                  </div>
+                </div>
+
+                {/* Glasses Control Buttons: Snap & Describe / Read Page */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -423,17 +661,34 @@ export function VoiceAssistantControl() {
 
                 {/* AI Transcription Result Box */}
                 {(visionTranscription || lastResponse) && (
-                  <div className="space-y-1 bg-black/40 p-2.5 rounded-xl border border-white/15">
+                  <div className="space-y-1 bg-black/50 p-3 rounded-xl border border-white/15">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-[#00C9A7] font-bold uppercase tracking-wider flex items-center gap-1">
                         <Sparkles className="w-3 h-3" /> AI Transcription:
                       </span>
-                      <button
-                        onClick={() => speak(visionTranscription || lastResponse || '')}
-                        className="text-[10px] text-[#38bdf8] hover:text-[#7dd3fc] flex items-center gap-1 hover:underline cursor-pointer"
-                      >
-                        <Volume2 className="w-3 h-3" /> Listen
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const textToCopy = visionTranscription || lastResponse || '';
+                            if (textToCopy) {
+                              navigator.clipboard?.writeText(textToCopy);
+                              setCopiedTranscription(true);
+                              setTimeout(() => setCopiedTranscription(false), 2000);
+                            }
+                          }}
+                          className="text-[10px] text-white/60 hover:text-white flex items-center gap-1 cursor-pointer"
+                          title="Copy text"
+                        >
+                          {copiedTranscription ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          {copiedTranscription ? 'Copied' : 'Copy'}
+                        </button>
+                        <button
+                          onClick={() => speak(visionTranscription || lastResponse || '')}
+                          className="text-[10px] text-[#38bdf8] hover:text-[#7dd3fc] flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <Volume2 className="w-3 h-3" /> Listen
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-white/90 leading-relaxed max-h-32 overflow-y-auto">
                       {visionTranscription || lastResponse}

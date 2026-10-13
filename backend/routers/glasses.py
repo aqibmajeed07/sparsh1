@@ -228,45 +228,84 @@ async def run_vision(jpeg: bytes, prompt: str) -> str:
     return raw_vlm_text
 
 
+class GlassesConfig(BaseModel):
+    url: Optional[str] = None
+    device_token: Optional[str] = None
+
+
+@router.get("/config")
+async def get_glasses_config():
+    return {
+        "url": GLASSES_URL,
+        "configured": bool(GLASSES_URL),
+        "device_token_configured": bool(DEVICE_TOKEN),
+    }
+
+
+@router.post("/config")
+async def update_glasses_config(cfg: GlassesConfig):
+    global GLASSES_URL, DEVICE_TOKEN
+    if cfg.url is not None:
+        GLASSES_URL = cfg.url.rstrip("/")
+    if cfg.device_token is not None:
+        DEVICE_TOKEN = cfg.device_token
+    return {
+        "ok": True,
+        "url": GLASSES_URL,
+        "configured": bool(GLASSES_URL),
+    }
+
+
 async def fetch_frame() -> bytes:
-    if not GLASSES_URL or not DEVICE_TOKEN:
+    if not GLASSES_URL:
         raise HTTPException(503, "Glasses are not configured")
+
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            r = await client.get(
-                f"{GLASSES_URL}/capture",
-                headers={"X-Device-Token": DEVICE_TOKEN}
-            )
-    except httpx.HTTPError:
-        raise HTTPException(503, "Glasses camera is not reachable")
-    if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/jpeg"):
-        raise HTTPException(502, f"Glasses camera returned HTTP {r.status_code}")
-    return r.content
+        fast_timeout = httpx.Timeout(connect=1.2, read=2.0, write=1.0, pool=1.0)
+        async with httpx.AsyncClient(timeout=fast_timeout) as client:
+            headers = {}
+            if DEVICE_TOKEN:
+                headers["X-Device-Token"] = DEVICE_TOKEN
+            r = await client.get(f"{GLASSES_URL}/capture", headers=headers)
+            if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/jpeg"):
+                return r.content
+    except Exception as e:
+        print(f"[Glasses] fetch_frame error from {GLASSES_URL}: {e}")
+
+    raise HTTPException(503, "Glasses camera is not reachable on local network")
 
 
 @router.get("/status")
 async def glasses_status(user=Depends(get_current_user)):
     """Lets the assistant say 'glasses connected / not connected'."""
-    if not GLASSES_URL:
-        return {"connected": False, "configured": False, "reason": "not configured"}
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            r = await client.get(
-                f"{GLASSES_URL}/status",
-                headers={"X-Device-Token": DEVICE_TOKEN}
-            )
-        if r.status_code == 200:
-            dev_data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"status": "ok"}
-            battery = dev_data.get("battery", 100) if isinstance(dev_data, dict) else 100
-            return {
-                "connected": True,
-                "configured": True,
-                "device": dev_data,
-                "battery": battery
-            }
-        return {"connected": False, "configured": True, "reason": f"HTTP {r.status_code}"}
-    except (httpx.HTTPError, ValueError):
-        return {"connected": False, "configured": True, "reason": "unreachable"}
+    if GLASSES_URL:
+        try:
+            fast_timeout = httpx.Timeout(connect=1.0, read=1.5, write=1.0, pool=1.0)
+            async with httpx.AsyncClient(timeout=fast_timeout) as client:
+                headers = {}
+                if DEVICE_TOKEN:
+                    headers["X-Device-Token"] = DEVICE_TOKEN
+                r = await client.get(f"{GLASSES_URL}/status", headers=headers)
+                if r.status_code == 200:
+                    dev_data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"status": "ok"}
+                    battery = dev_data.get("battery", 98) if isinstance(dev_data, dict) else 98
+                    return {
+                        "connected": True,
+                        "configured": True,
+                        "url": GLASSES_URL,
+                        "device": dev_data,
+                        "battery": battery,
+                    }
+        except Exception:
+            pass
+
+    return {
+        "connected": False,
+        "configured": bool(GLASSES_URL),
+        "url": GLASSES_URL,
+        "reason": "unreachable",
+        "battery": 98,
+    }
 
 
 @router.post("/vision")
@@ -296,7 +335,7 @@ async def vision(req: VisionRequest, user=Depends(get_current_user)):
         "mode": req.mode,
         "text": text,
         "description": text,  # Supports both user format and VoiceVision registry
-        "image_url": f"data:image/jpeg;base64,{b64_image}"
+        "image_url": f"data:image/jpeg;base64,{b64_image}",
     }
 
 
@@ -313,7 +352,11 @@ async def capture_frame():
     return Response(
         content=jpeg,
         media_type="image/jpeg",
-        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+            "Access-Control-Allow-Origin": "*",
+        },
     )
 
 

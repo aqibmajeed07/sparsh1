@@ -40,7 +40,7 @@
 #define DEVICE_TOKEN       "sparsh_glasses_aqib_mir_2026"
 
 // Laptop/Server URL where a button press pushes frames
-#define BACKEND_FRAME_URL  "http://10.93.154.216:8000/api/glasses/frame"
+#define BACKEND_FRAME_URL  "http://10.157.174.216:8000/api/glasses/frame"
 
 #define HOSTNAME           "sparsh-glasses"
 

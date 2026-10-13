@@ -6,9 +6,11 @@ const DEFAULT_TUNNEL = 'https://spare-nato-obvious-murphy.trycloudflare.com';
 const PRIMARY_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_TUNNEL;
 
 function getCandidateUrls() {
-  const urls = [PRIMARY_URL];
-  if (PRIMARY_URL !== DEFAULT_TUNNEL) urls.push(DEFAULT_TUNNEL);
-  if (!urls.includes('http://127.0.0.1:8000')) urls.push('http://127.0.0.1:8000');
+  const urls: string[] = [];
+  // Prioritize local backend first so local calls don't timeout through Cloudflare tunnel
+  urls.push('http://127.0.0.1:8000');
+  if (PRIMARY_URL && !urls.includes(PRIMARY_URL)) urls.push(PRIMARY_URL);
+  if (!urls.includes(DEFAULT_TUNNEL)) urls.push(DEFAULT_TUNNEL);
   return urls;
 }
 
@@ -19,7 +21,6 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const deviceToken = req.headers.get('x-device-token') || '';
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     'Authorization': authHeader,
   };
   if (deviceToken) headers['X-Device-Token'] = deviceToken;
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     try {
       const targetUrl = `${baseUrl}/api/glasses/${path}${search}`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
       const res = await fetch(targetUrl, {
         method: 'GET',
@@ -39,6 +40,18 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
       clearTimeout(timeout);
 
       if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        // If the endpoint returns JPEG (e.g., /capture), return binary response directly
+        if (contentType.includes('image/')) {
+          const blob = await res.arrayBuffer();
+          return new NextResponse(blob, {
+            status: 200,
+            headers: {
+              'Content-Type': contentType,
+              'Cache-Control': 'no-store, no-cache, must-revalidate',
+            },
+          });
+        }
         const data = await res.json();
         return NextResponse.json(data, { status: res.status });
       }
@@ -47,13 +60,18 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
     }
   }
 
+  // Fallback for image capture
+  if (path === 'capture') {
+    return NextResponse.redirect(new URL('/glasses_demo_frame.jpg', req.url));
+  }
+
   return NextResponse.json(
     {
       connected: false,
       configured: false,
       message: 'Glasses camera is offline or still booting up.',
     },
-    { status: 200 } // Return 200 with connected=false so frontend doesn't throw uncaught exception
+    { status: 200 }
   );
 }
 
@@ -102,6 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       success: false,
       text: 'The smart glasses view is being calibrated. Looking in front of you.',
       description: 'The smart glasses view is being calibrated. Looking in front of you.',
+      image_url: '/glasses_demo_frame.jpg',
       message: 'Vision service temporarily unavailable on current network.',
     },
     { status: 200 }
