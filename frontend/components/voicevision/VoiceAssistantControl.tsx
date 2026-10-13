@@ -25,7 +25,6 @@ import {
   Maximize2,
   Minimize2,
   RefreshCw,
-  Video,
   Wifi,
   Settings2,
   Copy,
@@ -58,7 +57,6 @@ export function VoiceAssistantControl() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Smart Glasses Live Camera & Streaming State ──
-  const [cameraSource, setCameraSource] = useState<'glasses' | 'webcam'>('glasses');
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
   const [liveGlassesFrameUrl, setLiveGlassesFrameUrl] = useState<string>(getGlassesCaptureUrl());
   const [glassesIp, setGlassesIp] = useState<string>('http://10.157.174.6');
@@ -67,40 +65,10 @@ export function VoiceAssistantControl() {
   const [batteryLevel, setBatteryLevel] = useState<number>(98);
   const [isGlassesConnected, setIsGlassesConnected] = useState<boolean>(false);
   const [copiedTranscription, setCopiedTranscription] = useState<boolean>(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Device Webcam Stream Management
-  useEffect(() => {
-    let localStream: MediaStream | null = null;
-    if (isOpen && activeTab === 'glasses' && cameraSource === 'webcam') {
-      navigator.mediaDevices
-        ?.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } })
-        .then((stream) => {
-          localStream = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play().catch(() => {});
-          }
-        })
-        .catch((err) => {
-          console.warn('Webcam permission or access issue:', err);
-          setCameraSource('glasses');
-        });
-    }
-
-    return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [isOpen, activeTab, cameraSource]);
 
   // Smart Glasses Live WiFi Feed & Status Management
   useEffect(() => {
-    if (!isOpen || activeTab !== 'glasses' || cameraSource !== 'glasses') return;
+    if (!isOpen || activeTab !== 'glasses') return;
 
     // Initial frame refresh immediately upon opening tab
     setLiveGlassesFrameUrl(getGlassesCaptureUrl());
@@ -125,7 +93,7 @@ export function VoiceAssistantControl() {
       }, 2500);
       return () => clearInterval(interval);
     }
-  }, [isOpen, activeTab, cameraSource, isStreaming, isAnalyzingImage]);
+  }, [isOpen, activeTab, isStreaming, isAnalyzingImage]);
 
   // Automatically open when user actively starts speaking or an action is triggered
   useEffect(() => {
@@ -176,33 +144,12 @@ export function VoiceAssistantControl() {
     setActiveTab('glasses');
     speak(mode === 'read' ? 'Reading text through smart glasses.' : 'Analyzing scene through smart glasses.');
 
-    let imageBase64: string | undefined = undefined;
-
-    // Grab live frame from device webcam if active
-    if (cameraSource === 'webcam' && videoRef.current) {
-      try {
-        const video = videoRef.current;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          imageBase64 = canvas.toDataURL('image/jpeg', 0.88);
-          setLastCapturedImage(imageBase64);
-        }
-      } catch (err) {
-        console.warn('Could not grab frame from video:', err);
-      }
-    }
-
     try {
       const res = await fetchGlassesApi('vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode,
-          image_base64: imageBase64,
           prompt: mode === 'read'
             ? 'Transcribe and read all visible text printed or handwritten on this page in front of me.'
             : 'Describe what is in front of me clearly and concisely for an inclusive learner.',
@@ -470,50 +417,29 @@ export function VoiceAssistantControl() {
             {/* TAB 2: SMART GLASSES & CAMERA AI TRANSCRIPTION VIEW */}
             {activeTab === 'glasses' && (
               <div className="space-y-3">
-                {/* Mode Switcher: Glasses WiFi Camera vs Device Webcam */}
-                <div className="flex items-center justify-between text-xs bg-white/5 p-1 rounded-xl border border-white/10">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setCameraSource('glasses')}
-                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
-                        cameraSource === 'glasses'
-                          ? 'bg-[#6C63FF] text-white shadow'
-                          : 'text-white/60 hover:text-white'
-                      }`}
-                    >
-                      <Wifi className="w-3 h-3" />
-                      Smart Glasses (WiFi)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCameraSource('webcam')}
-                      className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
-                        cameraSource === 'webcam'
-                          ? 'bg-[#00C9A7] text-black shadow'
-                          : 'text-white/60 hover:text-white'
-                      }`}
-                    >
-                      <Video className="w-3 h-3" />
-                      Webcam / PC Camera
-                    </button>
+                {/* Smart Glasses Camera Title & Refresh Controls */}
+                <div className="flex items-center justify-between text-xs bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="font-bold text-white text-[12px] flex items-center gap-1.5">
+                      <Wifi className="w-3.5 h-3.5 text-[#00C9A7]" />
+                      SPARSH Smart Glasses Camera
+                    </span>
                   </div>
 
                   {/* Settings & Refresh Controls */}
                   <div className="flex items-center gap-1">
-                    {cameraSource === 'glasses' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLiveGlassesFrameUrl(getGlassesCaptureUrl());
-                          speak('Refreshing glasses frame.');
-                        }}
-                        title="Refresh Live Camera Frame"
-                        className="p-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLiveGlassesFrameUrl(getGlassesCaptureUrl());
+                        speak('Refreshing glasses frame.');
+                      }}
+                      title="Refresh Live Camera Frame"
+                      className="p-1 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => setShowIpSettings(!showIpSettings)}
@@ -560,24 +486,14 @@ export function VoiceAssistantControl() {
 
                 {/* Live Camera Preview Box */}
                 <div className="relative rounded-2xl overflow-hidden border-2 border-white/20 bg-black aspect-video max-h-52 flex items-center justify-center group shadow-2xl">
-                  {cameraSource === 'webcam' ? (
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src={lastCapturedImage || liveGlassesFrameUrl || '/glasses_demo_frame.jpg'}
-                      alt="Glasses Camera Live View"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/glasses_demo_frame.jpg';
-                      }}
-                      className="w-full h-full object-contain bg-black"
-                    />
-                  )}
+                  <img
+                    src={lastCapturedImage || liveGlassesFrameUrl || '/glasses_demo_frame.jpg'}
+                    alt="Glasses Camera Live View"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/glasses_demo_frame.jpg';
+                    }}
+                    className="w-full h-full object-contain bg-black"
+                  />
 
                   {/* Real-Time Processing Scanline Overlay */}
                   {isAnalyzingImage && (
@@ -593,17 +509,13 @@ export function VoiceAssistantControl() {
                   <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[10px]">
                     <span
                       className={`w-2 h-2 rounded-full ${
-                        cameraSource === 'webcam'
-                          ? 'bg-emerald-400 animate-ping'
-                          : isGlassesConnected
+                        isGlassesConnected
                           ? 'bg-emerald-400 animate-pulse'
                           : 'bg-[#00C9A7]'
                       }`}
                     />
                     <span className="font-semibold text-white/95">
-                      {cameraSource === 'webcam'
-                        ? 'Live Webcam (Glasses View)'
-                        : isGlassesConnected
+                      {isGlassesConnected
                         ? 'Glasses Camera Stream'
                         : 'Glasses Camera Preview'}
                     </span>
