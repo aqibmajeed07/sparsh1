@@ -10,6 +10,7 @@ import SparshLogo from '@/components/ui/SparshLogo';
 const ROLE_NAV: Record<string, { label: string; href: string; icon: string }[]> = {
   student: [
     { label: 'Dashboard', href: '/student', icon: '🏠' },
+    { label: 'Sparsh Duo', href: '/student/sparsh-duo', icon: '🦚' },
     { label: 'Live Class', href: '/student/live-class', icon: '🔴' },
     { label: 'Lessons', href: '/student/lessons', icon: '📚' },
     { label: 'Sign Lab', href: '/student/sign-lab', icon: '🤟' },

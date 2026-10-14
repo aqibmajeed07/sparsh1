@@ -2846,6 +2846,445 @@ async def websocket_smart_gloves(websocket: WebSocket):
         glove_manager.disconnect(websocket)
     except Exception:
         glove_manager.disconnect(websocket)
+# ─── Gamification & Sparsh Duo (Duolingo for Accessibility) ───────────────────
+
+class GamificationProfileUpdate(BaseModel):
+    user_id: str
+    track: Optional[str] = "deaf_sign"  # "deaf_sign" | "blind_braille"
+    gems_delta: Optional[int] = 0
+    hearts_delta: Optional[int] = 0
+
+class GamificationLevelComplete(BaseModel):
+    user_id: str
+    level_id: str
+    track: str
+    mistakes_count: Optional[int] = 0
+    time_spent_seconds: Optional[int] = 0
+
+# In-memory store fallback when Supabase is initializing or table is pending
+_MEMORY_GAMIFICATION_PROFILES: Dict[str, Dict[str, Any]] = {}
+_MEMORY_LEVEL_PROGRESS: Dict[str, Dict[str, Any]] = {}
+
+# Pre-seeded curriculum levels
+DEFAULT_GAMIFICATION_LEVELS = [
+    # Deaf Sign Language Track
+    {
+        "id": "sign_u1_l1", "track": "deaf_sign", "unit_number": 1, "unit_title": "Unit 1: Alphabet Foundations",
+        "level_number": 1, "title": "Sign Letter A", "description": "Form a closed fist with thumb upright along index finger.",
+        "target_char": "A", "target_sign": "A", "xp_reward": 20, "gem_reward": 10,
+        "hints": ["Make a solid fist", "Keep thumb upright along the side"], "order_index": 1
+    },
+    {
+        "id": "sign_u1_l2", "track": "deaf_sign", "unit_number": 1, "unit_title": "Unit 1: Alphabet Foundations",
+        "level_number": 2, "title": "Sign Letter B", "description": "Four fingers straight up together, thumb folded across palm.",
+        "target_char": "B", "target_sign": "B", "xp_reward": 20, "gem_reward": 10,
+        "hints": ["Keep four fingers pressed straight", "Thumb across palm"], "order_index": 2
+    },
+    {
+        "id": "sign_u1_l3", "track": "deaf_sign", "unit_number": 1, "unit_title": "Unit 1: Alphabet Foundations",
+        "level_number": 3, "title": "Sign Letter C", "description": "Curve fingers and thumb into a C-shape facing sideways.",
+        "target_char": "C", "target_sign": "C", "xp_reward": 20, "gem_reward": 10,
+        "hints": ["Curve hand like gripping a cup", "Show C-profile to camera"], "order_index": 3
+    },
+    {
+        "id": "sign_u1_l4", "track": "deaf_sign", "unit_number": 1, "unit_title": "Unit 1: Alphabet Foundations",
+        "level_number": 4, "title": "Sign Letter D", "description": "Index finger points straight up, other fingers touch thumb tip.",
+        "target_char": "D", "target_sign": "D", "xp_reward": 25, "gem_reward": 12,
+        "hints": ["Index points up", "Other fingers touch thumb"], "order_index": 4
+    },
+    {
+        "id": "sign_u1_l5", "track": "deaf_sign", "unit_number": 1, "unit_title": "Unit 1: Alphabet Foundations",
+        "level_number": 5, "title": "Sign Letter L", "description": "Index finger up and thumb outward to form an L shape.",
+        "target_char": "L", "target_sign": "02_l", "xp_reward": 25, "gem_reward": 12,
+        "hints": ["Index up, thumb out horizontally", "Resembles letter L"], "order_index": 5
+    },
+    {
+        "id": "sign_u2_l1", "track": "deaf_sign", "unit_number": 2, "unit_title": "Unit 2: Essential Gestures",
+        "level_number": 1, "title": "Thumbs Up / Good", "description": "Show an affirmative thumbs up gesture to celebrate.",
+        "target_char": "Thumbs Up", "target_sign": "05_thumb", "xp_reward": 30, "gem_reward": 15,
+        "hints": ["Fist closed", "Thumb pointing high"], "order_index": 6
+    },
+    {
+        "id": "sign_u2_l2", "track": "deaf_sign", "unit_number": 2, "unit_title": "Unit 2: Essential Gestures",
+        "level_number": 2, "title": "Open Palm / Hello", "description": "Open flat palm facing camera with fingers slightly parted.",
+        "target_char": "Palm", "target_sign": "01_palm", "xp_reward": 30, "gem_reward": 15,
+        "hints": ["Flat palm facing camera", "Fingers straight"], "order_index": 7
+    },
+    {
+        "id": "sign_u2_l3", "track": "deaf_sign", "unit_number": 2, "unit_title": "Unit 2: Essential Gestures",
+        "level_number": 3, "title": "OK Sign", "description": "Touch thumb to index finger making a circle, other 3 fingers up.",
+        "target_char": "OK", "target_sign": "07_ok", "xp_reward": 30, "gem_reward": 15,
+        "hints": ["Circle with thumb and index", "3 other fingers extended"], "order_index": 8
+    },
+    {
+        "id": "sign_u2_l4", "track": "deaf_sign", "unit_number": 2, "unit_title": "Unit 2: Essential Gestures",
+        "level_number": 4, "title": "Solid Fist", "description": "Form a tight fist facing camera.",
+        "target_char": "Fist", "target_sign": "03_fist", "xp_reward": 35, "gem_reward": 15,
+        "hints": ["Wrap fingers into palm tightly", "Hold steady"], "order_index": 9
+    },
+    {
+        "id": "sign_u2_l5", "track": "deaf_sign", "unit_number": 2, "unit_title": "Unit 2: Essential Gestures",
+        "level_number": 5, "title": "Victory / V-Sign", "description": "Raise index and middle fingers in a peace V-sign.",
+        "target_char": "V", "target_sign": "V", "xp_reward": 35, "gem_reward": 18,
+        "hints": ["Two fingers in V shape", "Thumb holds other fingers down"], "order_index": 10
+    },
+
+    # Blind Braille Track
+    {
+        "id": "braille_u1_l1", "track": "blind_braille", "unit_number": 1, "unit_title": "Unit 1: Top Dot Foundations",
+        "level_number": 1, "title": "Braille Letter A", "description": "Letter A is formed by pressing only Dot 1 (top-left).",
+        "target_char": "A", "target_braille_dots": [1], "braille_display": "⠁", "xp_reward": 20, "gem_reward": 10,
+        "hints": ["Dot 1 is top-left", "Keyboard key: F"], "order_index": 1
+    },
+    {
+        "id": "braille_u1_l2", "track": "blind_braille", "unit_number": 1, "unit_title": "Unit 1: Top Dot Foundations",
+        "level_number": 2, "title": "Braille Letter B", "description": "Letter B is formed by pressing Dot 1 (top-left) and Dot 2 (mid-left).",
+        "target_char": "B", "target_braille_dots": [1, 2], "braille_display": "⠃", "xp_reward": 20, "gem_reward": 10,
+        "hints": ["Dots 1 and 2 in left column", "Keyboard keys: F and D"], "order_index": 2
+    },
+    {
+        "id": "braille_u1_l3", "track": "blind_braille", "unit_number": 1, "unit_title": "Unit 1: Top Dot Foundations",
+        "level_number": 3, "title": "Braille Letter C", "description": "Letter C is formed by pressing both top dots: Dot 1 and Dot 4.",
+        "target_char": "C", "target_braille_dots": [1, 4], "braille_display": "⠉", "xp_reward": 20, "gem_reward": 10,
+        "hints": ["Dot 1 (top-left) and Dot 4 (top-right)", "Keyboard keys: F and J"], "order_index": 3
+    },
+    {
+        "id": "braille_u1_l4", "track": "blind_braille", "unit_number": 1, "unit_title": "Unit 1: Top Dot Foundations",
+        "level_number": 4, "title": "Braille Letter D", "description": "Letter D is formed by pressing Dot 1, Dot 4, and Dot 5.",
+        "target_char": "D", "target_braille_dots": [1, 4, 5], "braille_display": "⠙", "xp_reward": 25, "gem_reward": 12,
+        "hints": ["Dots 1, 4 on top, plus Dot 5 on mid-right", "Keyboard keys: F, J, K"], "order_index": 4
+    },
+    {
+        "id": "braille_u1_l5", "track": "blind_braille", "unit_number": 1, "unit_title": "Unit 1: Top Dot Foundations",
+        "level_number": 5, "title": "Braille Letter E", "description": "Letter E is formed by pressing Dot 1 (top-left) and Dot 5 (mid-right).",
+        "target_char": "E", "target_braille_dots": [1, 5], "braille_display": "⠑", "xp_reward": 25, "gem_reward": 12,
+        "hints": ["Dot 1 and diagonal Dot 5", "Keyboard keys: F and K"], "order_index": 5
+    },
+    {
+        "id": "braille_u2_l1", "track": "blind_braille", "unit_number": 2, "unit_title": "Unit 2: Mid-Cell Combinations",
+        "level_number": 1, "title": "Braille Letter F", "description": "Letter F is formed by pressing Dot 1, Dot 2, and Dot 4.",
+        "target_char": "F", "target_braille_dots": [1, 2, 4], "braille_display": "⠋", "xp_reward": 30, "gem_reward": 15,
+        "hints": ["Dots 1, 2 on left, Dot 4 on top-right", "Keyboard keys: F, D, J"], "order_index": 6
+    },
+    {
+        "id": "braille_u2_l2", "track": "blind_braille", "unit_number": 2, "unit_title": "Unit 2: Mid-Cell Combinations",
+        "level_number": 2, "title": "Braille Letter G", "description": "Letter G is a solid block of the four upper dots: 1, 2, 4, and 5.",
+        "target_char": "G", "target_braille_dots": [1, 2, 4, 5], "braille_display": "⠛", "xp_reward": 30, "gem_reward": 15,
+        "hints": ["Top four dots together", "Keyboard keys: F, D, J, K"], "order_index": 7
+    },
+    {
+        "id": "braille_u2_l3", "track": "blind_braille", "unit_number": 2, "unit_title": "Unit 2: Mid-Cell Combinations",
+        "level_number": 3, "title": "Braille Letter H", "description": "Letter H is formed by pressing Dot 1, Dot 2, and Dot 5.",
+        "target_char": "H", "target_braille_dots": [1, 2, 5], "braille_display": "⠓", "xp_reward": 30, "gem_reward": 15,
+        "hints": ["Dots 1, 2 on left, Dot 5 on mid-right", "Keyboard keys: F, D, K"], "order_index": 8
+    },
+    {
+        "id": "braille_u2_l4", "track": "blind_braille", "unit_number": 2, "unit_title": "Unit 2: Mid-Cell Combinations",
+        "level_number": 4, "title": "Braille Letter I", "description": "Letter I is formed by pressing Dot 2 (mid-left) and Dot 4 (top-right).",
+        "target_char": "I", "target_braille_dots": [2, 4], "braille_display": "⠊", "xp_reward": 35, "gem_reward": 15,
+        "hints": ["Diagonal dots 2 and 4", "Keyboard keys: D and J"], "order_index": 9
+    },
+    {
+        "id": "braille_u2_l5", "track": "blind_braille", "unit_number": 2, "unit_title": "Unit 2: Mid-Cell Combinations",
+        "level_number": 5, "title": "Braille Letter J", "description": "Letter J is formed by pressing Dot 2, Dot 4, and Dot 5.",
+        "target_char": "J", "target_braille_dots": [2, 4, 5], "braille_display": "⠚", "xp_reward": 35, "gem_reward": 18,
+        "hints": ["Dot 2 on left, Dots 4, 5 on right", "Keyboard keys: D, J, K"], "order_index": 10
+    }
+]
+
+@app.get("/api/gamification/profile")
+def get_gamification_profile(user_id: str = "guest_student"):
+    """Fetches user gamification profile with streak & heart calculations."""
+    profile = None
+    if supabase:
+        try:
+            res = supabase.table("student_gamification_profile").select("*").eq("user_id", user_id).execute()
+            if res.data and len(res.data) > 0:
+                profile = res.data[0]
+        except Exception as e:
+            print(f"[Gamification] Supabase profile read fallback: {e}")
+            
+    if not profile:
+        profile = _MEMORY_GAMIFICATION_PROFILES.get(user_id, {
+            "user_id": user_id,
+            "track": "deaf_sign",
+            "total_xp": 120,
+            "gems": 180,
+            "hearts": 5,
+            "max_hearts": 5,
+            "current_streak": 2,
+            "last_activity_date": str(date.today())
+        })
+        _MEMORY_GAMIFICATION_PROFILES[user_id] = profile
+
+    return {"status": "success", "profile": profile}
+
+@app.post("/api/gamification/profile")
+def update_gamification_profile(payload: GamificationProfileUpdate):
+    """Updates user gamification track or wallet (gems/hearts)."""
+    user_id = payload.user_id
+    curr = _MEMORY_GAMIFICATION_PROFILES.get(user_id, {
+        "user_id": user_id,
+        "track": payload.track or "deaf_sign",
+        "total_xp": 0,
+        "gems": 150,
+        "hearts": 5,
+        "max_hearts": 5,
+        "current_streak": 1,
+        "last_activity_date": str(date.today())
+    })
+
+    if payload.track:
+        curr["track"] = payload.track
+    if payload.gems_delta:
+        curr["gems"] = max(0, curr.get("gems", 0) + payload.gems_delta)
+    if payload.hearts_delta:
+        curr["hearts"] = min(curr.get("max_hearts", 5), max(0, curr.get("hearts", 5) + payload.hearts_delta))
+
+    curr["last_activity_date"] = str(date.today())
+    _MEMORY_GAMIFICATION_PROFILES[user_id] = curr
+
+    if supabase:
+        try:
+            supabase.table("student_gamification_profile").upsert(curr).execute()
+        except Exception as e:
+            print(f"[Gamification] Supabase profile upsert fallback: {e}")
+
+    return {"status": "success", "profile": curr}
+
+@app.get("/api/gamification/levels")
+def get_gamification_levels(track: str = "deaf_sign", user_id: str = "guest_student"):
+    """Returns levels for the given track with completion status & unlock states."""
+    levels = []
+    if supabase:
+        try:
+            res = supabase.table("gamification_levels").select("*").eq("track", track).order("order_index").execute()
+            if res.data:
+                levels = res.data
+        except Exception as e:
+            print(f"[Gamification] Supabase levels fetch fallback: {e}")
+
+    if not levels:
+        levels = [lvl for lvl in DEFAULT_GAMIFICATION_LEVELS if lvl["track"] == track]
+
+    # Fetch user progress
+    user_prog_map = {}
+    if supabase:
+        try:
+            res_p = supabase.table("user_level_progress").select("*").eq("user_id", user_id).execute()
+            if res_p.data:
+                for row in res_p.data:
+                    user_prog_map[row["level_id"]] = row
+        except Exception as e:
+            print(f"[Gamification] Supabase progress fetch fallback: {e}")
+
+    # Fallback to in-memory progress
+    for k, v in _MEMORY_LEVEL_PROGRESS.items():
+        if k.startswith(f"{user_id}:"):
+            lvl_id = k.split(":", 1)[1]
+            if lvl_id not in user_prog_map:
+                user_prog_map[lvl_id] = v
+
+    # Attach unlocked / completed states in sequential order
+    enriched_levels = []
+    has_uncompleted_unlocked = False
+
+    for idx, lvl in enumerate(levels):
+        lvl_id = lvl["id"]
+        prog = user_prog_map.get(lvl_id)
+        is_completed = bool(prog and prog.get("completed"))
+        stars = prog.get("stars", 0) if prog else 0
+
+        # First level is always unlocked. Next levels unlock once previous is completed.
+        if idx == 0:
+            is_unlocked = True
+        else:
+            prev_lvl = levels[idx - 1]
+            prev_prog = user_prog_map.get(prev_lvl["id"])
+            is_unlocked = bool(prev_prog and prev_prog.get("completed"))
+
+        enriched_levels.append({
+            **lvl,
+            "completed": is_completed,
+            "stars": stars,
+            "is_unlocked": is_unlocked,
+            "is_current": is_unlocked and not is_completed and not has_uncompleted_unlocked
+        })
+
+        if is_unlocked and not is_completed:
+            has_uncompleted_unlocked = True
+
+    return {"status": "success", "track": track, "levels": enriched_levels}
+
+@app.post("/api/gamification/complete-level")
+def complete_gamification_level(payload: GamificationLevelComplete):
+    """Awards XP, gems, updates streak, and marks level complete."""
+    user_id = payload.user_id
+    level_id = payload.level_id
+    mistakes = payload.mistakes_count or 0
+
+    # Calculate stars: 0 mistakes = 3 stars, 1-2 mistakes = 2 stars, 3+ mistakes = 1 star
+    if mistakes == 0:
+        stars = 3
+    elif mistakes <= 2:
+        stars = 2
+    else:
+        stars = 1
+
+    # Find level definition
+    target_lvl = next((lvl for lvl in DEFAULT_GAMIFICATION_LEVELS if lvl["id"] == level_id), None)
+    xp_reward = target_lvl["xp_reward"] if target_lvl else 25
+    gem_reward = target_lvl["gem_reward"] if target_lvl else 10
+
+    prog_data = {
+        "user_id": user_id,
+        "level_id": level_id,
+        "completed": True,
+        "stars": stars,
+        "score": max(50, 100 - (mistakes * 15)),
+        "attempts": 1,
+        "completed_at": datetime.now(timezone.utc).isoformat()
+    }
+    _MEMORY_LEVEL_PROGRESS[f"{user_id}:{level_id}"] = prog_data
+
+    # Update profile XP, gems & streak
+    profile = _MEMORY_GAMIFICATION_PROFILES.get(user_id, {
+        "user_id": user_id,
+        "track": payload.track,
+        "total_xp": 0,
+        "gems": 150,
+        "hearts": 5,
+        "max_hearts": 5,
+        "current_streak": 1,
+        "last_activity_date": str(date.today())
+    })
+    profile["total_xp"] = profile.get("total_xp", 0) + xp_reward
+    profile["gems"] = profile.get("gems", 0) + gem_reward
+    profile["current_streak"] = profile.get("current_streak", 1) + 1
+    profile["last_activity_date"] = str(date.today())
+    _MEMORY_GAMIFICATION_PROFILES[user_id] = profile
+
+    if supabase:
+        try:
+            supabase.table("user_level_progress").upsert(prog_data).execute()
+            supabase.table("student_gamification_profile").upsert(profile).execute()
+        except Exception as e:
+            print(f"[Gamification] Supabase complete upsert fallback: {e}")
+
+    return {
+        "status": "success",
+        "xp_earned": xp_reward,
+        "gems_earned": gem_reward,
+        "stars": stars,
+        "streak": profile["current_streak"],
+        "profile": profile
+    }
+
+@app.post("/api/gamification/heart-lost")
+def gamification_heart_lost(user_id: str = Body(..., embed=True)):
+    """Decrements a heart when student makes an error in a challenge."""
+    profile = _MEMORY_GAMIFICATION_PROFILES.get(user_id, {
+        "user_id": user_id,
+        "track": "deaf_sign",
+        "total_xp": 0,
+        "gems": 150,
+        "hearts": 5,
+        "max_hearts": 5,
+        "current_streak": 1,
+        "last_activity_date": str(date.today())
+    })
+    profile["hearts"] = max(0, profile.get("hearts", 5) - 1)
+    _MEMORY_GAMIFICATION_PROFILES[user_id] = profile
+
+    if supabase:
+        try:
+            supabase.table("student_gamification_profile").upsert(profile).execute()
+        except Exception as e:
+            pass
+
+    return {"status": "success", "hearts": profile["hearts"]}
+
+@app.post("/api/gamification/refill-hearts")
+def gamification_refill_hearts(user_id: str = Body(..., embed=True), cost: int = Body(50, embed=True)):
+    """Spends gems to immediately refill hearts to max (5)."""
+    profile = _MEMORY_GAMIFICATION_PROFILES.get(user_id, {
+        "user_id": user_id,
+        "track": "deaf_sign",
+        "total_xp": 0,
+        "gems": 150,
+        "hearts": 5,
+        "max_hearts": 5,
+        "current_streak": 1,
+        "last_activity_date": str(date.today())
+    })
+
+    if profile.get("gems", 0) < cost:
+        raise HTTPException(status_code=400, detail="Not enough gems to refill hearts")
+
+    profile["gems"] -= cost
+    profile["hearts"] = profile.get("max_hearts", 5)
+    _MEMORY_GAMIFICATION_PROFILES[user_id] = profile
+
+    if supabase:
+        try:
+            supabase.table("student_gamification_profile").upsert(profile).execute()
+        except Exception as e:
+            pass
+
+    return {"status": "success", "hearts": profile["hearts"], "gems": profile["gems"]}
+
+@app.post("/api/gamification/verify-sign")
+def gamification_verify_sign(data: Dict[str, Any] = Body(...)):
+    """Verifies live webcam frame against target hand sign."""
+    image = data.get("image", "")
+    target_sign = str(data.get("target_sign", "")).strip().lower()
+
+    if not image:
+        return {"match": False, "confidence": 0, "detected": "No frame", "message": "Image required"}
+
+    if not detector:
+        return {"match": False, "confidence": 0, "detected": "Sign AI Offline", "message": "Detector unavailable"}
+
+    try:
+        if not detector.ready:
+            detector._ensure_loaded()
+        pred = detector.predict_base64(image)
+        detected_raw = pred.get("sign") or ""
+        confidence = float(pred.get("confidence") or 0.0)
+
+        # Normalize strings for comparison
+        clean_target = target_sign.replace("_", "").replace(" ", "").lower()
+        clean_det = detected_raw.replace("_", "").replace(" ", "").lower()
+
+        # Match aliases
+        alias_map = {
+            "thumbsup": ["05thumb", "thumb", "thumbsup"],
+            "palm": ["01palm", "palm", "hello", "paper"],
+            "fist": ["03fist", "fist", "rock"],
+            "ok": ["07ok", "ok"],
+            "v": ["v", "peace", "scissors", "2"],
+            "l": ["02l", "l"],
+            "c": ["09c", "c"]
+        }
+
+        match = False
+        if clean_target and clean_det:
+            if clean_target == clean_det:
+                match = True
+            elif clean_target in alias_map and any(a in clean_det for a in alias_map[clean_target]):
+                match = True
+            elif clean_target in clean_det or clean_det in clean_target:
+                match = True
+
+        return {
+            "match": match and confidence >= 0.20,
+            "confidence": round(confidence, 2),
+            "detected": detected_raw or "No sign detected",
+            "target": target_sign,
+            "is_confident": pred.get("is_confident", False)
+        }
+    except Exception as e:
+        return {"match": False, "confidence": 0, "detected": "Error", "message": str(e)}
 
 
 def free_port(port: int = 8000):
