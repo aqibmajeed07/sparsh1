@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getBackendCandidateUrls } from '@/lib/backendUrl';
 
 export const maxDuration = 60;
-
-const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'https://spare-nato-obvious-murphy.trycloudflare.com';
 
 export async function POST(req: Request) {
   let body: any = {};
@@ -12,25 +11,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Invalid JSON' }, { status: 400 });
   }
 
-  // 1. Try forwarding to backend
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+  // 1. Try forwarding to backend candidate URLs
+  for (const baseUrl of getBackendCandidateUrls()) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const res = await fetch(`${BACKEND_URL}/api/senseband/ai-emotion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+      const res = await fetch(`${baseUrl}/api/senseband/ai-emotion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    if (res.ok) {
-      const data = await res.json();
-      return NextResponse.json(data);
+      if (res.ok) {
+        const data = await res.json();
+        return NextResponse.json(data);
+      }
+    } catch (err) {
+      // Try next candidate
     }
-  } catch (err) {
-    console.warn('[SenseBand AI Emotion Proxy] Backend offline, using rule engine');
   }
 
   // 2. Built-in haptic pattern matching rule engine

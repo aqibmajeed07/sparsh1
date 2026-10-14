@@ -1,33 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBackendCandidateUrls } from '@/lib/backendUrl';
 
 export const maxDuration = 60;
-
-const DEFAULT_TUNNEL = 'https://spare-nato-obvious-murphy.trycloudflare.com';
-const PRIMARY_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_TUNNEL;
-
-function getCandidateUrls() {
-  const urls: string[] = [];
-  const isVercel = Boolean(process.env.VERCEL) || process.env.NODE_ENV === 'production';
-
-  // Only check local 127.0.0.1 when running locally outside Vercel/production
-  if (!isVercel) {
-    urls.push('http://127.0.0.1:8000');
-  }
-
-  // Add PRIMARY_URL if it is not localhost in production
-  if (PRIMARY_URL && !urls.includes(PRIMARY_URL)) {
-    if (!isVercel || (!PRIMARY_URL.includes('127.0.0.1') && !PRIMARY_URL.includes('localhost'))) {
-      urls.push(PRIMARY_URL);
-    }
-  }
-
-  // Add DEFAULT_TUNNEL as cloud backend
-  if (!urls.includes(DEFAULT_TUNNEL)) {
-    urls.push(DEFAULT_TUNNEL);
-  }
-
-  return urls;
-}
 
 export async function GET(req: NextRequest, { params }: { params: { slug: string[] } }) {
   const path = params.slug.join('/');
@@ -40,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   };
   if (deviceToken) headers['X-Device-Token'] = deviceToken;
 
-  for (const baseUrl of getCandidateUrls()) {
+  for (const baseUrl of getBackendCandidateUrls()) {
     try {
       const targetUrl = `${baseUrl}/api/glasses/${path}${search}`;
       const controller = new AbortController();
@@ -107,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   if (deviceToken) headers['X-Device-Token'] = deviceToken;
   if (trigger) headers['X-Trigger'] = trigger;
 
-  for (const baseUrl of getCandidateUrls()) {
+  for (const baseUrl of getBackendCandidateUrls()) {
     try {
       const targetUrl = `${baseUrl}/api/glasses/${path}`;
       const controller = new AbortController();

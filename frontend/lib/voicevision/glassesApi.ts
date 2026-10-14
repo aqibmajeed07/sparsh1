@@ -4,7 +4,7 @@
  * and seamlessly falls back to Next.js serverless proxy if direct connection is blocked.
  */
 
-const DIRECT_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://spare-nato-obvious-murphy.trycloudflare.com';
+const DIRECT_BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sparsh-538t.onrender.com';
 
 export function getGlassesCaptureUrl(): string {
   const t = Date.now();

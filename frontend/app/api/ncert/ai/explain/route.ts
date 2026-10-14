@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+import { getBackendCandidateUrls } from '@/lib/backendUrl';
 
 export async function POST(req: Request) {
   let body: any = {};
@@ -12,25 +11,27 @@ export async function POST(req: Request) {
 
   const { chapter_title, text_chunk, mode = 'explain' } = body;
 
-  // 1. Try forwarding to backend
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+  // 1. Try forwarding to candidate backends
+  for (const baseUrl of getBackendCandidateUrls()) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
 
-    const res = await fetch(`${BACKEND_URL}/api/ncert/ai/explain`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chapter_title, text_chunk, mode }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+      const res = await fetch(`${baseUrl}/api/ncert/ai/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapter_title, text_chunk, mode }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    if (res.ok) {
-      const data = await res.json();
-      return NextResponse.json(data);
+      if (res.ok) {
+        const data = await res.json();
+        return NextResponse.json(data);
+      }
+    } catch (err) {
+      // try next candidate
     }
-  } catch (err) {
-    console.warn('[NCERT AI Explain Proxy] Backend unreachable, using client generator');
   }
 
   // 2. Fallback smart explanation generator

@@ -206,7 +206,7 @@ export default function AccessibilityAITutorPage() {
 
     try {
       let data: any = null;
-      const directUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://spare-nato-obvious-murphy.trycloudflare.com';
+      const directUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sparsh-538t.onrender.com';
 
       // 1. Attempt direct connection to tunnel (instant, avoids serverless function limits)
       try {

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getBackendCandidateUrls } from '@/lib/backendUrl';
 
 export const maxDuration = 60;
-
-const DEFAULT_TUNNEL = 'https://spare-nato-obvious-murphy.trycloudflare.com';
-const PRIMARY_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || DEFAULT_TUNNEL;
 
 export async function POST(req: Request) {
   let body: any = {};
@@ -13,10 +11,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Invalid JSON' }, { status: 400 });
   }
 
-  const candidateUrls = [PRIMARY_URL];
-  if (PRIMARY_URL !== DEFAULT_TUNNEL) {
-    candidateUrls.push(DEFAULT_TUNNEL);
-  }
+  const candidateUrls = getBackendCandidateUrls();
 
   for (const baseUrl of candidateUrls) {
     try {

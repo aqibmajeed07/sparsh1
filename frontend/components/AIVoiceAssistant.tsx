@@ -43,7 +43,7 @@ export default function AIVoiceAssistant() {
     const consecutiveErrorsRef = useRef<number>(0);
     const router = useRouter();
 
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://spare-nato-obvious-murphy.trycloudflare.com';
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sparsh-538t.onrender.com';
 
     const restartTimerRef = useRef<any>(null);
 
