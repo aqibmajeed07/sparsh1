@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import dynamic from 'next/dynamic';
 import { AccessibilityProvider } from '@/components/AccessibilityContext';
@@ -126,6 +126,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.replace('/login');
   };
 
+  const pathname = usePathname();
+  const isFullScreenApp = Boolean(pathname?.includes('/student/ai-tutor'));
+
   return (
     <AccessibilityProvider>
       <VoiceAssistantProvider>
@@ -136,9 +139,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             mobileOpen={mobileMenuOpen}
             setMobileOpen={setMobileMenuOpen}
           />
-          <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
+          <main className={`flex-1 min-w-0 flex flex-col h-screen ${isFullScreenApp ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {/* Universal Sticky Top Header with User Info and Logout Button in all tabs */}
-            <header className="sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 backdrop-blur-xl border-b border-white/10 bg-[#0f0c29]/90 shrink-0">
+            <header className="sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 backdrop-blur-xl border-b border-white/10 bg-[#0f0c29]/90 shrink-0">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {/* Mobile Hamburger Button */}
                 <button
@@ -182,7 +185,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </header>
 
-            <div className="flex-1 p-3.5 sm:p-6 lg:p-8 pb-32 sm:pb-12 min-w-0">
+            <div className={`flex-1 min-w-0 flex flex-col ${isFullScreenApp ? 'p-2 sm:p-3 pb-2 sm:pb-3 overflow-hidden h-[calc(100vh-3.5rem)]' : 'p-3.5 sm:p-6 lg:p-8 pb-32 sm:pb-12'}`}>
               {children}
             </div>
           </main>

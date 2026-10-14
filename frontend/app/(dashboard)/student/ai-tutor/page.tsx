@@ -685,40 +685,41 @@ export default function AccessibilityAITutorPage() {
       };
 
   return (
-    <div className={`flex flex-col h-[calc(100vh-2rem)] gap-4 relative overflow-hidden ${themeColors.bg}`}>
+    <div className={`flex flex-col h-full w-full gap-2 relative overflow-hidden ${themeColors.bg}`}>
 
-      {/* ── Top Header Bar ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
-        <div>
-          <h1 className={`text-2xl sm:text-3xl font-bold flex items-center gap-3 ${themeColors.text}`}>
-            <Sparkles className={`w-7 h-7 sm:w-8 h-8 ${highContrast ? 'text-yellow-400' : 'text-[#6C63FF]'}`} />
-            Inclusive AI Tutor & Voice Navigator
-          </h1>
-          <p className={`${highContrast ? 'text-white' : 'text-white/60'} text-xs sm:text-sm mt-1 flex items-center gap-2 flex-wrap`}>
-            <span>Multi-Sensory Learning with 3D Avatar ISL & Voice Control</span>
+      {/* ── Top Header Bar (Compact & Sleek Single-Row) ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0 px-1">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className={`text-base sm:text-lg font-bold flex items-center gap-2 ${themeColors.text}`}>
+              <Sparkles className={`w-5 h-5 shrink-0 ${highContrast ? 'text-yellow-400' : 'text-[#6C63FF]'}`} />
+              <span>Inclusive AI Tutor & Voice Navigator</span>
+            </h1>
             {activeSessionId && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${highContrast ? 'border-yellow-400 text-yellow-400' : 'border-[#00C9A7]/40 bg-[#00C9A7]/10 text-[#00C9A7]'}`}>
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border truncate max-w-[200px] ${
+                highContrast ? 'border-yellow-400 text-yellow-400' : 'border-[#00C9A7]/40 bg-[#00C9A7]/10 text-[#00C9A7]'
+              }`}>
                 Topic: {activeSessionTitle}
               </span>
             )}
-          </p>
+          </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
 
           {/* History Drawer Toggle Button */}
           <button
             onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md border ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 border shadow-sm ${
               isHistoryOpen 
                 ? (highContrast ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-[#00C9A7] text-black border-[#00C9A7]') 
                 : (highContrast ? 'bg-[#222] text-yellow-400 border-yellow-400 hover:bg-[#333]' : 'bg-white/10 text-white hover:bg-white/20 border-white/15')
             }`}
             title="Toggle Chat History Drawer"
           >
-            <History className="w-4 h-4" />
-            <span>Chat History</span>
+            <History className="w-3.5 h-3.5" />
+            <span>History</span>
             {sessions.length > 0 && (
               <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${isHistoryOpen ? 'bg-black/20 text-black' : 'bg-[#6C63FF] text-white'}`}>
                 {sessions.length}
@@ -729,14 +730,14 @@ export default function AccessibilityAITutorPage() {
           {/* + New Chat Button */}
           <button
             onClick={handleNewChat}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm ${
               highContrast
                 ? 'bg-yellow-400 text-black hover:bg-yellow-500'
                 : 'bg-gradient-to-r from-[#6C63FF] to-[#8075ff] hover:from-[#5b52e0] hover:to-[#6C63FF] text-white'
             }`}
             title="Start a Fresh Conversation"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>New Chat</span>
           </button>
 
@@ -744,7 +745,7 @@ export default function AccessibilityAITutorPage() {
           <button
             onClick={handleDeleteCurrentSession}
             disabled={!activeSessionId && messages.length <= 1}
-            className={`p-2 rounded-xl transition border ${
+            className={`p-1.5 rounded-lg transition border ${
               messages.length <= 1 && !activeSessionId
                 ? 'opacity-40 cursor-not-allowed border-transparent bg-white/5 text-white/40'
                 : highContrast
@@ -753,40 +754,40 @@ export default function AccessibilityAITutorPage() {
             }`}
             title="Delete Current Chat"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
 
           {/* Detailed Mode Toggle */}
           <button
             onClick={() => setIsDetailedMode(!isDetailedMode)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1 ${
               isDetailedMode 
-                ? 'bg-[#00C9A7] text-black shadow-lg' 
+                ? 'bg-[#00C9A7] text-black shadow-sm font-bold' 
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
             }`}
           >
-            <BookOpen className="w-4 h-4" />
-            {isDetailedMode ? 'Detailed Mode ON' : 'Detailed Mode OFF'}
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{isDetailedMode ? 'Detailed: ON' : 'Detailed: OFF'}</span>
           </button>
 
           {/* Accessibility Settings */}
           <button 
             onClick={() => setShowSettings(true)} 
-            className={`p-2 rounded-xl transition ${highContrast ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-white/10 text-white hover:bg-white/20'}`}
+            className={`p-1.5 rounded-lg transition ${highContrast ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-white/10 text-white hover:bg-white/20'}`}
             title="Accessibility Settings"
           >
-            <Settings2 className="w-5 h-5" />
+            <Settings2 className="w-4 h-4" />
           </button>
 
           {/* Language Selector */}
-          <div className={`flex items-center gap-2 p-1.5 px-3 rounded-2xl ${themeColors.card}`}>
-            <Globe className={`w-4 h-4 ${highContrast ? 'text-yellow-400' : 'text-[#00C9A7]'}`} />
+          <div className={`flex items-center gap-1.5 p-1 px-2.5 rounded-xl ${themeColors.card}`}>
+            <Globe className={`w-3.5 h-3.5 ${highContrast ? 'text-yellow-400' : 'text-[#00C9A7]'}`} />
             <div className="flex gap-1">
               {LANGUAGES.map((lang, idx) => (
                 <button
                   key={lang.code}
                   onClick={() => { setLangIndex(idx); window.speechSynthesis?.cancel(); setSignQueue([]); }}
-                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all ${
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${
                     langIndex === idx ? themeColors.accent : (highContrast ? 'text-white hover:bg-white/10' : 'text-white/60 hover:bg-white/5')
                   }`}
                 >
@@ -798,42 +799,56 @@ export default function AccessibilityAITutorPage() {
         </div>
       </div>
 
-      {/* ── Main Workspace Area ── */}
-      <div className="flex flex-col lg:flex-row gap-5 flex-1 min-h-[600px] relative overflow-hidden">
+      {/* ── Main Workspace Area (Symmetrically Aligned Left & Right Panels) ── */}
+      <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0 relative overflow-hidden">
 
         {/* ── Left Panel: 3D ISL Avatar ── */}
-        <div className={`w-full lg:w-[52%] flex flex-col relative overflow-hidden rounded-3xl border shadow-2xl ${themeColors.card}`}>
-          <div className="absolute top-4 left-4 z-20 flex gap-2 flex-wrap">
-            <span className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full flex items-center gap-1 ${highContrast ? 'bg-yellow-400 text-black' : 'bg-[#6C63FF]/20 text-[#6C63FF]'}`}>
-              <Eye className="w-3 h-3" /> Visual (ISL 3D Avatar)
-            </span>
-            <span className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full flex items-center gap-1 ${highContrast ? 'bg-white text-black' : 'bg-[#00C9A7]/20 text-[#00C9A7]'}`}>
-              <Ear className="w-3 h-3" /> Audio (TTS)
-            </span>
-            {deafBlindMode && (
-              <span className="px-3 py-1 text-[10px] font-bold uppercase rounded-full bg-red-500/20 text-red-400 flex items-center gap-1 animate-pulse">
-                <Hand className="w-3 h-3" /> Haptic Active
+        <div className={`w-full lg:w-[48%] xl:w-[46%] flex flex-col h-full rounded-2xl border shadow-xl overflow-hidden relative ${themeColors.card}`}>
+          {/* Top Info Bar (Height: h-10, exactly matches Right Panel's top bar) */}
+          <div className={`h-10 px-3.5 flex items-center justify-between border-b shrink-0 ${highContrast ? 'border-yellow-400 bg-[#111]' : 'border-white/10 bg-white/5'}`}>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md flex items-center gap-1 ${
+                highContrast ? 'bg-yellow-400 text-black' : 'bg-[#6C63FF]/25 text-[#a8a2ff]'
+              }`}>
+                <Eye className="w-3 h-3" /> Visual (ISL)
               </span>
-            )}
+              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md flex items-center gap-1 ${
+                highContrast ? 'bg-white text-black' : 'bg-[#00C9A7]/20 text-[#00C9A7]'
+              }`}>
+                <Ear className="w-3 h-3" /> Audio (TTS)
+              </span>
+              {deafBlindMode && (
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-red-500/20 text-red-400 flex items-center gap-1 animate-pulse">
+                  <Hand className="w-3 h-3" /> Haptic
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-semibold text-white/50 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              3D Avatar Active
+            </span>
           </div>
 
-          {/* 3D Avatar Canvas */}
-          <div className="flex-1 w-full bg-black relative flex flex-col overflow-hidden min-h-[440px]">
+          {/* 3D Avatar Canvas (Flex-1 fluid height) */}
+          <div className="flex-1 min-h-0 w-full bg-black relative flex flex-col overflow-hidden">
             <SignAvatarOverlay
               queue={signQueue}
               onSignComplete={() => setSignQueue(q => q.slice(1))}
               isProcessing={isThinking}
               isSpeaking={isSpeaking}
               speakingText={speakingText}
-              framing="full"
+              framing="waist"
+              showFramingToggle={true}
               showIslBadge={false}
               className="w-full h-full flex-1 rounded-none border-0"
             />
           </div>
 
-          {/* Live Subtitles / Captions */}
-          <div className={`p-4 min-h-[70px] flex items-center justify-center text-center border-t ${highContrast ? 'bg-black border-yellow-400' : 'bg-[#060412]/90 border-white/10'}`}>
-            <p className={`text-base sm:text-lg font-bold ${highContrast ? 'text-yellow-400' : 'text-emerald-400'}`}>
+          {/* Bottom Subtitles / Live Status Bar (Height: h-14, exactly matches Right Panel's bottom input) */}
+          <div className={`h-14 px-4 flex items-center justify-center text-center border-t shrink-0 ${
+            highContrast ? 'bg-black border-yellow-400' : 'bg-[#060412]/95 border-white/10'
+          }`}>
+            <p className={`text-xs sm:text-sm font-bold truncate max-w-full px-2 ${highContrast ? 'text-yellow-400' : 'text-emerald-400'}`}>
               {isThinking 
                 ? "AI PROCESSING COMMAND & REASONING....." 
                 : signQueue.length > 0 
@@ -846,19 +861,19 @@ export default function AccessibilityAITutorPage() {
         </div>
 
         {/* ── Right Panel: Chat Messages & Input ── */}
-        <div className={`flex-1 min-w-[320px] flex flex-col min-h-0 relative rounded-3xl shadow-xl ${themeColors.card}`}>
+        <div className={`flex-1 min-w-0 flex flex-col h-full rounded-2xl border shadow-xl overflow-hidden relative ${themeColors.card}`}>
 
-          {/* Chat Header Chip / Switch Bar */}
-          <div className={`px-5 py-3 border-b flex items-center justify-between text-xs ${highContrast ? 'border-yellow-400 bg-[#111]' : 'border-white/10 bg-white/5'}`}>
+          {/* Top Info Bar (Height: h-10, exactly matches Left Panel's top bar) */}
+          <div className={`h-10 px-3.5 flex items-center justify-between border-b shrink-0 ${highContrast ? 'border-yellow-400 bg-[#111]' : 'border-white/10 bg-white/5'}`}>
             <div className="flex items-center gap-2 truncate">
-              <MessageSquare className="w-4 h-4 text-[#00C9A7] shrink-0" />
-              <span className="font-semibold text-white/90 truncate">
+              <MessageSquare className="w-3.5 h-3.5 text-[#00C9A7] shrink-0" />
+              <span className="font-semibold text-xs text-white/90 truncate">
                 {activeSessionTitle}
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {isLoadingSession && (
-                <span className="flex items-center gap-1 text-[#00C9A7] animate-pulse">
+                <span className="flex items-center gap-1 text-[#00C9A7] animate-pulse text-[11px]">
                   <RefreshCw className="w-3 h-3 animate-spin" /> Loading...
                 </span>
               )}
@@ -868,39 +883,39 @@ export default function AccessibilityAITutorPage() {
             </div>
           </div>
 
-          {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+          {/* Messages Scroll Area (Flex-1 fluid height) */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-3">
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
                 <motion.div 
                   key={msg.id} 
-                  initial={{ opacity: 0, y: 10 }} 
+                  initial={{ opacity: 0, y: 8 }} 
                   animate={{ opacity: 1, y: 0 }} 
                   className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-[88%] flex gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <div className={`p-4 sm:p-5 rounded-2xl relative shadow-md ${msg.sender === 'user' ? themeColors.userMsg : themeColors.aiMsg}`}>
-                      <p className={`text-base sm:text-lg font-medium leading-relaxed whitespace-pre-wrap ${highContrast ? (msg.sender === 'user' ? 'text-yellow-300' : 'text-white') : ''}`}>
+                  <div className={`max-w-[85%] flex gap-2.5 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div className={`p-3 sm:p-3.5 rounded-2xl relative shadow-md ${msg.sender === 'user' ? themeColors.userMsg : themeColors.aiMsg}`}>
+                      <p className={`text-xs sm:text-sm font-medium leading-relaxed whitespace-pre-wrap ${highContrast ? (msg.sender === 'user' ? 'text-yellow-300' : 'text-white') : ''}`}>
                         {msg.text}
                       </p>
                       
                       {msg.sender === 'ai' && (
-                        <div className="mt-4 flex gap-4 flex-wrap">
+                        <div className="mt-2.5 pt-2 border-t border-white/5 flex gap-3 flex-wrap">
                           <button 
                             onClick={() => speak(msg.text, currentLang.code)} 
-                            className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                            className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider transition ${
                               highContrast ? 'text-yellow-400 hover:text-white' : 'text-[#6C63FF] hover:text-white'
                             }`}
                           >
-                            <Volume2 className="w-4 h-4" /> Listen
+                            <Volume2 className="w-3.5 h-3.5" /> Listen
                           </button>
                           <button 
                             onClick={() => setSignQueue(convertTextToSigns(msg.isl_translation || msg.text))} 
-                            className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                            className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider transition ${
                               highContrast ? 'text-white hover:text-yellow-400' : 'text-[#00C9A7] hover:text-white'
                             }`}
                           >
-                            <Activity className="w-4 h-4" /> Sign 3D Avatar
+                            <Activity className="w-3.5 h-3.5" /> Sign 3D Avatar
                           </button>
                         </div>
                       )}
@@ -913,79 +928,76 @@ export default function AccessibilityAITutorPage() {
               {isThinking && (
                 <motion.div
                   key="ai-thinking-indicator"
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="flex justify-start"
                 >
-                  <div className="max-w-[85%] flex gap-3 flex-row items-center">
-                    <div className={`p-4 px-6 rounded-2xl ${themeColors.aiMsg} flex items-center gap-3 border border-[#6C63FF]/40 bg-gradient-to-r from-[#6C63FF]/20 via-[#00C9A7]/15 to-[#6C63FF]/20 shadow-xl backdrop-blur-md`}>
-                      <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#00C9A7] flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[#00C9A7] animate-spin" />
+                  <div className="max-w-[85%] flex gap-2.5 flex-row items-center">
+                    <div className={`p-2.5 px-4 rounded-xl ${themeColors.aiMsg} flex items-center gap-2.5 border border-[#6C63FF]/40 bg-gradient-to-r from-[#6C63FF]/20 via-[#00C9A7]/15 to-[#6C63FF]/20 shadow-lg backdrop-blur-md`}>
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#00C9A7] flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#00C9A7] animate-spin" />
                         Processing Command
                       </span>
-                      <div className="flex items-center gap-1.5 ml-1">
-                        <span className="w-2 h-2 rounded-full bg-[#00C9A7] animate-bounce [animation-delay:-0.32s]" />
-                        <span className="w-2 h-2 rounded-full bg-[#6C63FF] animate-bounce [animation-delay:-0.16s]" />
-                        <span className="w-2 h-2 rounded-full bg-pink-400 animate-bounce" />
+                      <div className="flex items-center gap-1 ml-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#00C9A7] animate-bounce [animation-delay:-0.32s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#6C63FF] animate-bounce [animation-delay:-0.16s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce" />
                       </div>
-                      <span className="text-sm font-mono font-bold text-white/70 tracking-widest animate-pulse ml-1">.....</span>
                     </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-            <div ref={messagesEndRef} className="h-4" />
+            <div ref={messagesEndRef} className="h-2" />
           </div>
 
-          {/* Bottom Chat Input Bar */}
-          <div className={`p-4 border-t rounded-b-3xl ${highContrast ? 'bg-black border-yellow-400' : 'border-white/10 bg-black/20'}`}>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={toggleListen} 
-                className={`p-4 sm:p-5 rounded-2xl transition-all shadow-lg shrink-0 ${
-                  isListening 
-                    ? 'bg-[#ff3366] text-white animate-pulse' 
-                    : (highContrast ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-white/10 text-white hover:bg-white/20')
-                }`} 
-                title="Voice Command / Dictation"
-              >
-                {isListening ? <StopCircle className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-              </button>
+          {/* Bottom Chat Input Bar (Height: h-14, exactly matches Left Panel's bottom captions bar) */}
+          <div className={`h-14 px-3 border-t flex items-center gap-2.5 shrink-0 ${highContrast ? 'bg-black border-yellow-400' : 'border-white/10 bg-black/25'}`}>
+            <button 
+              onClick={toggleListen} 
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-md shrink-0 ${
+                isListening 
+                  ? 'bg-[#ff3366] text-white animate-pulse' 
+                  : (highContrast ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-white/10 text-white hover:bg-white/20')
+              }`} 
+              title="Voice Command / Dictation"
+            >
+              {isListening ? <StopCircle className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
 
-              <div className="flex-1 relative">
-                <input
-                  type="text" 
-                  value={input} 
-                  onChange={(e) => setInput(e.target.value)} 
-                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={
-                    isThinking 
-                      ? "Thinking & formulating response....." 
-                      : isListening 
-                      ? "Say 'What is cell' or 'New chat'..." 
-                      : "Type your message or voice command..."
-                  }
-                  className={`w-full rounded-2xl py-4 sm:py-5 pl-5 pr-14 text-base sm:text-lg transition-all focus:outline-none ${
-                    highContrast 
-                      ? 'bg-[#222] border-2 border-yellow-400 text-yellow-400 placeholder-yellow-700 focus:bg-[#111]' 
-                      : 'bg-white/5 border border-white/10 text-white placeholder-white/40 focus:border-[#6C63FF]/50 focus:bg-white/10'
-                  }`}
-                  disabled={isListening || isThinking}
-                />
-                <button 
-                  onClick={() => handleSend()} 
-                  disabled={!input.trim() || isThinking} 
-                  className={`absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 p-2.5 sm:p-3 transition ${
-                    highContrast 
-                      ? 'text-yellow-400 hover:text-white disabled:opacity-40' 
-                      : 'text-white/40 hover:text-[#00C9A7] disabled:opacity-30'
-                  }`}
-                  title="Send message"
-                >
-                  {isThinking ? <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-[#00C9A7]" /> : <Send className="w-5 h-5 sm:w-6 sm:h-6" />}
-                </button>
-              </div>
+            <div className="flex-1 relative">
+              <input
+                type="text" 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder={
+                  isThinking 
+                    ? "Thinking & formulating response....." 
+                    : isListening 
+                    ? "Say 'What is cell' or 'New chat'..." 
+                    : "Type message or voice command..."
+                }
+                className={`w-full rounded-xl py-2 pl-3.5 pr-10 text-xs sm:text-sm transition-all focus:outline-none ${
+                  highContrast 
+                    ? 'bg-[#222] border-2 border-yellow-400 text-yellow-400 placeholder-yellow-700 focus:bg-[#111]' 
+                    : 'bg-white/5 border border-white/10 text-white placeholder-white/40 focus:border-[#6C63FF]/50 focus:bg-white/10'
+                }`}
+                disabled={isListening || isThinking}
+              />
+              <button 
+                onClick={() => handleSend()} 
+                disabled={!input.trim() || isThinking} 
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 transition ${
+                  highContrast 
+                    ? 'text-yellow-400 hover:text-white disabled:opacity-40' 
+                    : 'text-white/40 hover:text-[#00C9A7] disabled:opacity-30'
+                }`}
+                title="Send message"
+              >
+                {isThinking ? <Sparkles className="w-4 h-4 animate-spin text-[#00C9A7]" /> : <Send className="w-4 h-4" />}
+              </button>
             </div>
           </div>
         </div>
