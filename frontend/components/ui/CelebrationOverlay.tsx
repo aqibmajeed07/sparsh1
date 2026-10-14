@@ -80,11 +80,13 @@ function ConfettiCanvas({ active }: { active: boolean }) {
   const [tops, setTops] = useState<Record<number, number>>({});
   const frameRef = useRef<number>(0);
   const startedRef = useRef(false);
+  const speedMapRef = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     if (!active) {
       setParticles([]);
       setTops({});
+      speedMapRef.current.clear();
       startedRef.current = false;
       cancelAnimationFrame(frameRef.current);
       return;
@@ -97,7 +99,11 @@ function ConfettiCanvas({ active }: { active: boolean }) {
     const initial = Array.from({ length: 60 }, (_, i) => makeParticle(i));
     setParticles(initial);
     const topState: Record<number, number> = {};
-    initial.forEach(p => { topState[p.id] = -10; });
+    speedMapRef.current.clear();
+    initial.forEach(p => {
+      topState[p.id] = -10;
+      speedMapRef.current.set(p.id, p.vy);
+    });
     setTops({ ...topState });
 
     let frame = 0;
@@ -107,7 +113,8 @@ function ConfettiCanvas({ active }: { active: boolean }) {
         const next = { ...prev };
         Object.keys(next).forEach(key => {
           const id = Number(key);
-          next[id] = next[id] + initial.find(p => p.id === id)!.vy * 0.5;
+          const speed = speedMapRef.current.get(id) ?? 3;
+          next[id] = (next[id] ?? -10) + speed * 0.5;
         });
         return next;
       });
@@ -117,7 +124,10 @@ function ConfettiCanvas({ active }: { active: boolean }) {
           const newPs = Array.from({ length: 5 }, (_, i) => makeParticle(Date.now() + i));
           setTops(t => {
             const n = { ...t };
-            newPs.forEach(p => { n[p.id] = -10; });
+            newPs.forEach(p => {
+              n[p.id] = -10;
+              speedMapRef.current.set(p.id, p.vy);
+            });
             return n;
           });
           return [...prev, ...newPs];
