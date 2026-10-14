@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Request, Body
 import urllib.error
@@ -904,30 +905,131 @@ def clean_json_response(raw_text: str) -> dict:
         pass
     return {"reply": raw_text}
 
-# ─── AI Tutor Chat ──────────────────────────────────────────────────────────────
+# ─── AI Tutor Chat & Multi-Session History ────────────────────────────────────
 
 class ChatMessage(BaseModel):
     message: str
-    language: str = "en-US"
-    detailed: bool = False
+    language: Optional[str] = "en-US"
+    detailed: Optional[bool] = False
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+
+class CreateSessionRequest(BaseModel):
+    title: Optional[str] = "New Conversation"
+    language: Optional[str] = "en-US"
+    user_id: Optional[str] = None
+
+@app.get("/api/ai-tutor/sessions")
+def get_ai_tutor_sessions(user_id: Optional[str] = None):
+    """Fetches all chat sessions for the user, ordered by most recently updated."""
+    if not supabase:
+        return {"sessions": []}
+    try:
+        query = supabase.table("ai_tutor_sessions").select("*")
+        if user_id:
+            query = query.eq("user_id", user_id)
+        res = query.order("updated_at", desc=True).limit(50).execute()
+        return {"sessions": res.data or []}
+    except Exception as e:
+        print(f"[AI Tutor Sessions] Query note: {e}")
+        return {"sessions": []}
+
+@app.post("/api/ai-tutor/sessions")
+def create_ai_tutor_session(req: CreateSessionRequest):
+    """Creates a new chat session thread."""
+    new_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    session_data = {
+        "id": new_id,
+        "user_id": req.user_id,
+        "title": req.title or "New Conversation",
+        "language": req.language or "en-US",
+        "created_at": now,
+        "updated_at": now
+    }
+    if supabase:
+        try:
+            res = supabase.table("ai_tutor_sessions").insert(session_data).execute()
+            if res.data:
+                return res.data[0]
+        except Exception as e:
+            print(f"[AI Tutor Sessions] Insert error: {e}")
+    return session_data
+
+@app.get("/api/ai-tutor/sessions/{session_id}/messages")
+def get_ai_tutor_session_messages(session_id: str):
+    """Fetches all message history for a specific session."""
+    if not supabase:
+        return {"messages": []}
+    try:
+        # Try ai_tutor_messages table
+        res = supabase.table("ai_tutor_messages").select("*").eq("session_id", session_id).order("created_at", desc=False).execute()
+        if res.data and len(res.data) > 0:
+            return {"messages": res.data}
+        
+        # Fallback to ai_tutor_chats with session_id
+        try:
+            res2 = supabase.table("ai_tutor_chats").select("*").eq("session_id", session_id).order("created_at", desc=False).execute()
+            if res2.data:
+                return {"messages": res2.data}
+        except Exception:
+            pass
+
+        return {"messages": []}
+    except Exception as e:
+        print(f"[AI Tutor Messages] Error: {e}")
+        return {"messages": []}
+
+@app.delete("/api/ai-tutor/sessions/{session_id}")
+def delete_ai_tutor_session(session_id: str):
+    """Deletes a specific session and all its messages."""
+    deleted = False
+    if supabase:
+        try:
+            try:
+                supabase.table("ai_tutor_messages").delete().eq("session_id", session_id).execute()
+            except Exception:
+                pass
+            try:
+                supabase.table("ai_tutor_chats").delete().eq("session_id", session_id).execute()
+            except Exception:
+                pass
+            supabase.table("ai_tutor_sessions").delete().eq("id", session_id).execute()
+            deleted = True
+        except Exception as e:
+            print(f"[AI Tutor Sessions] Delete error: {e}")
+    return {"status": "deleted" if deleted else "ok", "session_id": session_id}
+
+@app.delete("/api/ai-tutor/sessions")
+def clear_ai_tutor_sessions(user_id: Optional[str] = None):
+    """Clears all sessions and chat history for a user."""
+    if supabase and user_id:
+        try:
+            supabase.table("ai_tutor_messages").delete().eq("user_id", user_id).execute()
+            supabase.table("ai_tutor_chats").delete().eq("user_id", user_id).execute()
+            supabase.table("ai_tutor_sessions").delete().eq("user_id", user_id).execute()
+        except Exception as e:
+            print(f"[AI Tutor Sessions] Clear error: {e}")
+    return {"status": "cleared", "user_id": user_id}
 
 @app.post("/api/ai-tutor/chat")
 def ai_tutor_chat(job: ChatMessage):
     lang_code = job.language or "en-US"
     user_msg = (job.message or "").strip()
     detected_lang = detect_language_name(user_msg, lang_code)
-    is_detailed = job.detailed or any(w in user_msg.lower() for w in ["detail", "explain", "why", "how", "elaborate", "steps", "more"])
+    is_detailed = bool(job.detailed) or any(w in user_msg.lower() for w in ["detail", "explain", "why", "how", "elaborate", "steps", "more"])
 
     system = f"You are SPARSH AI Tutor. IMPORTANT: Always respond in {detected_lang}. Output Line 1: explanation in {detected_lang}, Line 2: ISL GLOSS: English sign language keywords in CAPITAL letters."
     prompt = f"Question: '{user_msg}'"
+
+    reply = ""
+    isl_gloss = "understand learn concept"
 
     try:
         content = call_nvidia_ai(prompt, system_prompt=system, max_tokens=300 if is_detailed else 130)
         lines = [line.strip() for line in content.strip().split('\n') if line.strip()]
         
         reply_lines = []
-        isl_gloss = "understand learn concept"
-
         for line in lines:
             if "ISL GLOSS:" in line or "ISL:" in line:
                 isl_gloss = line.replace("ISL GLOSS:", "").replace("ISL:", "").replace("*", "").strip().lower()
@@ -937,14 +1039,98 @@ def ai_tutor_chat(job: ChatMessage):
                     reply_lines.append(clean_l)
 
         reply = "\n".join(reply_lines) if reply_lines else content
-        return {"reply": reply, "language": lang_code, "isl_translation": isl_gloss}
-
     except Exception:
         pass
 
-    # Instant RAG & Knowledge Base Synthesizer Fallback (< 5ms)
-    reply, isl_gloss = synthesize_ai_response(user_msg, detected_lang, is_detailed)
-    return {"reply": reply, "language": lang_code, "isl_translation": isl_gloss}
+    if not reply:
+        # Instant RAG & Knowledge Base Synthesizer Fallback (< 5ms)
+        reply, isl_gloss = synthesize_ai_response(user_msg, detected_lang, is_detailed)
+
+    # Session management & Database Persistence
+    session_id = job.session_id
+    now = datetime.now(timezone.utc).isoformat()
+    session_title = user_msg[:38] + ("..." if len(user_msg) > 38 else "") if user_msg else "New Conversation"
+
+    if supabase:
+        try:
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                try:
+                    supabase.table("ai_tutor_sessions").insert({
+                        "id": session_id,
+                        "user_id": job.user_id,
+                        "title": session_title,
+                        "language": lang_code,
+                        "created_at": now,
+                        "updated_at": now
+                    }).execute()
+                except Exception:
+                    pass
+            else:
+                try:
+                    supabase.table("ai_tutor_sessions").update({"updated_at": now}).eq("id", session_id).execute()
+                except Exception:
+                    pass
+
+            # Save user message
+            user_msg_id = str(uuid.uuid4())
+            try:
+                supabase.table("ai_tutor_messages").insert({
+                    "id": user_msg_id,
+                    "session_id": session_id,
+                    "user_id": job.user_id,
+                    "sender": "user",
+                    "text": user_msg,
+                    "language": lang_code,
+                    "created_at": now
+                }).execute()
+            except Exception:
+                try:
+                    supabase.table("ai_tutor_chats").insert({
+                        "id": user_msg_id,
+                        "user_id": job.user_id,
+                        "sender": "user",
+                        "text": user_msg,
+                        "language": lang_code
+                    }).execute()
+                except Exception:
+                    pass
+
+            # Save AI message
+            ai_msg_id = str(uuid.uuid4())
+            try:
+                supabase.table("ai_tutor_messages").insert({
+                    "id": ai_msg_id,
+                    "session_id": session_id,
+                    "user_id": job.user_id,
+                    "sender": "ai",
+                    "text": reply,
+                    "isl_translation": isl_gloss,
+                    "language": lang_code,
+                    "created_at": now
+                }).execute()
+            except Exception:
+                try:
+                    supabase.table("ai_tutor_chats").insert({
+                        "id": ai_msg_id,
+                        "user_id": job.user_id,
+                        "sender": "ai",
+                        "text": reply,
+                        "language": lang_code
+                    }).execute()
+                except Exception:
+                    pass
+
+        except Exception as db_err:
+            print(f"[AI Tutor Chat] DB persistence error: {db_err}")
+
+    return {
+        "reply": reply,
+        "language": lang_code,
+        "isl_translation": isl_gloss,
+        "session_id": session_id,
+        "session_title": session_title
+    }
 
 # ─── Hackathon Endpoints ──────────────────────────────────────────────────
 

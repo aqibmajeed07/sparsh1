@@ -37,10 +37,14 @@ export async function POST(req: Request) {
 
   // Graceful conversational fallback if all backend targets are momentarily unreachable
   const userMsg = body.message || 'Help';
+  const fallbackSessionId = body.session_id || crypto.randomUUID();
+  const sessionTitle = userMsg.length > 38 ? userMsg.substring(0, 38) + '...' : userMsg;
   return NextResponse.json({
     reply: `I am your SPARSH AI Tutor. I understood your question about "${userMsg}". Here is a simple explanation: All concepts in science and mathematics can be understood by observing everyday examples around us.`,
     language: body.language || 'en-US',
-    isl_translation: userMsg.toLowerCase().replace(/[^a-z0-9 ]/g, '')
+    isl_translation: userMsg.toLowerCase().replace(/[^a-z0-9 ]/g, ''),
+    session_id: fallbackSessionId,
+    session_title: sessionTitle
   });
 }
 
