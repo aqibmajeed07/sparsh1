@@ -6,7 +6,7 @@ import {
     Bluetooth, BluetoothOff, Zap, Radio, Activity, Cpu, RefreshCw,
     CheckCircle, XCircle, Loader2, AlertTriangle, Play, BarChart2,
     Waves, BookOpen, Brain, Bell, Navigation, ChevronRight, Sparkles,
-    Battery, Signal, WifiOff, Info, Heart, Key, Send, Smile, MessageSquare, Search
+    Battery, Signal, WifiOff, Info, Heart, Key, Send, Smile, MessageSquare, Search, Volume2
 } from 'lucide-react';
 import { senseBand, HAPTIC_PATTERNS, HapticCommand, SenseBandStatus } from '@/lib/senseband';
 
@@ -31,6 +31,10 @@ const PRESET_EMOTIONS = [
 ];
 
 const COMMAND_GROUPS = [
+    {
+        title: 'Buzzer & Sound Profiles', icon: <Volume2 className="w-4 h-4" />, color: '#fdcb6e',
+        commands: ['BUZZER_SOFT', 'BUZZER_HARD', 'BUZZER_SMART', 'BUZZER_MUTE', 'BUZZER_INVERT'] as HapticCommand[],
+    },
     {
         title: 'Learning Feedback', icon: <BookOpen className="w-4 h-4" />, color: '#6C63FF',
         commands: ['CORRECT', 'WRONG', 'LESSON_COMPLETE', 'AI_READY'] as HapticCommand[],

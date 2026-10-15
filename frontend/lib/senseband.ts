@@ -31,6 +31,12 @@ export type HapticCommand =
     | 'EMERGENCY'
     | 'LOW_BATTERY'
     | 'BATTERY_REQUEST'
+    | 'GPS_REQUEST'
+    | 'BUZZER_HARD'
+    | 'BUZZER_SOFT'
+    | 'BUZZER_SMART'
+    | 'BUZZER_MUTE'
+    | 'BUZZER_INVERT'
     | 'TEST'
     | 'SLEEP'
     | 'WAKE';
@@ -62,6 +68,12 @@ export const HAPTIC_PATTERNS: Record<HapticCommand, { label: string; description
     EMERGENCY: { label: 'Emergency', description: 'Continuous 3 seconds', pattern: '██████', group: 'Emergency' },
     LOW_BATTERY: { label: 'Low Battery', description: 'Slow pulse every 30s', pattern: '· … ·', group: 'System' },
     BATTERY_REQUEST: { label: 'Battery Check', description: 'Request battery %', pattern: '?', group: 'System' },
+    GPS_REQUEST: { label: 'GPS Location', description: 'Query GPS coordinates', pattern: '⌖', group: 'Navigation' },
+    BUZZER_HARD: { label: 'Buzzer: Hard Mode', description: 'Solid loud tone during vibration', pattern: '🔊', group: 'Buzzer' },
+    BUZZER_SOFT: { label: 'Buzzer: Soft Mode', description: 'Pleasant 20% micro-pulse tone during vibration', pattern: '🔉', group: 'Buzzer' },
+    BUZZER_SMART: { label: 'Buzzer: Smart Mode', description: 'Hard on Alert/Error, Soft on Lessons', pattern: '🔔', group: 'Buzzer' },
+    BUZZER_MUTE: { label: 'Buzzer: Silent Mode', description: 'Vibration only (mute sound)', pattern: '🔇', group: 'Buzzer' },
+    BUZZER_INVERT: { label: 'Buzzer: Invert Polarity', description: 'Toggle Active-Low / Active-High', pattern: '⚡', group: 'Buzzer' },
     TEST: { label: 'Test Vibration', description: 'Full 1-second burst', pattern: '████', group: 'System' },
     SLEEP: { label: 'Sleep Mode', description: 'Enter deep sleep', pattern: 'Zzz', group: 'System' },
     WAKE: { label: 'Wake Up', description: 'Wake from sleep', pattern: '!', group: 'System' },
@@ -178,7 +190,7 @@ class SenseBandManager {
             this.characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
             this.addLog('✅ Haptic characteristic ready.');
 
-            // Listen for notifications (battery responses)
+            // Listen for notifications (battery and GPS responses)
             try {
                 await this.characteristic.startNotifications();
                 this.characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
@@ -190,6 +202,10 @@ class SenseBandManager {
                             this.batteryListeners.forEach(cb => cb(pct));
                             this.addLog(`🔋 Battery: ${pct}%`);
                         }
+                    } else if (value.startsWith('GPS:')) {
+                        this.addLog(`📍 Location: ${value.substring(4)}`);
+                    } else if (value.startsWith('BUZZER:')) {
+                        this.addLog(`🔔 Buzzer Profile: ${value.substring(7)}`);
                     }
                 });
             } catch (_) {
@@ -289,6 +305,25 @@ class SenseBandManager {
     async requestBattery(): Promise<number> {
         await this.send('BATTERY_REQUEST');
         return this.batteryPercent;
+    }
+
+    // ── Request GPS position ────────────────────────────────────────────────
+    async requestGPS(): Promise<void> {
+        await this.send('GPS_REQUEST');
+    }
+
+    // ── Buzzer profile controls (Hard / Soft / Smart / Mute / Invert) ────────
+    async setBuzzerMode(mode: 'hard' | 'soft' | 'smart' | 'mute' | 'invert'): Promise<boolean> {
+        const cmdMap: Record<string, HapticCommand> = {
+            hard: 'BUZZER_HARD',
+            soft: 'BUZZER_SOFT',
+            smart: 'BUZZER_SMART',
+            mute: 'BUZZER_MUTE',
+            invert: 'BUZZER_INVERT',
+        };
+        const cmd = cmdMap[mode];
+        if (!cmd) return false;
+        return this.send(cmd);
     }
 }
 

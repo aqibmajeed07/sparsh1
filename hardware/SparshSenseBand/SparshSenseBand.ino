@@ -1,14 +1,18 @@
 /*
  * ══════════════════════════════════════════════════════════════════════════════
- *  SPARSH SENSEBAND — AI Powered Haptic Learning Companion
- *  Complete BLE Firmware for ESP32 DevKit V1  |  Firmware v2.2
+ *  SPARSH SENSEBAND — AI Powered Haptic & GPS Learning Companion
+ *  Complete BLE & GPS Firmware for ESP32 DevKit V1  |  Firmware v2.3
  * ══════════════════════════════════════════════════════════════════════════════
  *
  *  TARGET:    ESP32 DevKit V1 (38-pin or 30-pin, dual-core Xtensa LX6)
  *  BATTERY:   3.7V LiPo via HW-373 charger
- *  MOTOR:     3V Coin Vibration Motor via 2N2222A + 1kΩ base resistor
+ *  MOTOR:     3V Coin Vibration Motor via CT BC557B JS (PNP Transistor)
+ *             ⚠ High-Side Switch: ACTIVE LOW logic (LOW = ON, HIGH = OFF)
+ *             ⚠ Emitter MUST connect to ESP32 3.3V rail (NOT 5V)
  *  BUZZER:    2-pin Active Buzzer (HIGH = ON)
- *  BLE:       Android app sends text commands; band responds with haptics
+ *  GPS:       GY-NEO6MV2 / u-blox NEO-6M via Hardware UART2 (9600 baud)
+ *  BLE:       Companion app sends text commands; band responds with haptics
+ *             and transmits telemetry (Battery % & GPS coordinates)
  *
  *  Arduino IDE Settings:
  *    Board       → ESP32 Dev Module
@@ -16,14 +20,37 @@
  *    Upload Speed→ 921600
  *    CPU Freq    → 240MHz
  *
+ *  Required Libraries (Install via Arduino Library Manager):
+ *    1. TinyGPSPlus by Mikal Hart (Search "TinyGPSPlus")
+ *    2. ESP32 BLE Arduino (Built-in with ESP32 board package ≥ 2.0)
+ *
  *  Pin Map:
- *    GPIO 4  → Vibration Motor (via 2N2222A)
- *    GPIO 5  → Active Buzzer
+ *    GPIO 4  → Vibration Motor Base (via 1kΩ to Base of BC557B PNP, ACTIVE LOW)
+ *    GPIO 5  → Active Buzzer (positive leg, ACTIVE HIGH)
  *    GPIO 2  → Onboard LED (active HIGH on DevKit V1)
+ *    GPIO 16 → GPS Module TXD (ESP32 UART2 RX2)
+ *    GPIO 17 → GPS Module RXD (ESP32 UART2 TX2)
  *    GPIO 34 → Battery ADC (ADC1_CH6 — safe with BLE, input-only pin)
  *              ⚠ If you wired battery to a different pin, update PIN_BATT_ADC.
  *              ⚠ AVOID GPIO0/GPIO2/GPIO4/GPIO5 for ADC — strapping pins.
  *              ⚠ AVOID ADC2 pins (0,2,4,12-15,25-27) when using BLE/WiFi.
+ *
+ *  ── BC557B (PNP) WIRING GUIDE ───────────────────────────────────────────────
+ *  TO-92 Package: Looking at flat face with pins pointing DOWN (left-to-right):
+ *    Pin 1: Collector (C) ── Connect to Motor (+) Positive lead (red wire)
+ *    Pin 2: Base (B)      ── Connect through 1kΩ resistor to ESP32 GPIO 4
+ *    Pin 3: Emitter (E)   ── Connect to ESP32 3.3V power rail (MUST BE 3.3V!)
+ *    Motor (–) Lead       ── Connect to ESP32 GND
+ *    Flyback Diode        ── 1N4007 or 1N4148 in parallel with motor:
+ *                            Cathode (band) to Motor (+), Anode to GND
+ *  ────────────────────────────────────────────────────────────────────────────
+ *
+ *  ── GY-NEO6MV2 GPS WIRING GUIDE ─────────────────────────────────────────────
+ *    VCC ── Connect to ESP32 3.3V or VIN (5V)
+ *    GND ── Connect to ESP32 GND
+ *    TXD ── Connect to ESP32 GPIO 16 (UART2 RX2)
+ *    RXD ── Connect to ESP32 GPIO 17 (UART2 TX2)
+ *  ────────────────────────────────────────────────────────────────────────────
  *
  *  ── WDT FIX NOTES ───────────────────────────────────────────────────────────
  *  TG1WDT_SYS_RESET was caused by three bugs:
@@ -48,15 +75,51 @@
 #include <BLE2902.h>
 #include <esp_sleep.h>
 #include <esp_task_wdt.h>
+#include <TinyGPS++.h>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── GPIO Pins ──────────────────────────────────────────────────────────────────
-#define PIN_MOTOR     4    // NPN transistor base (2N2222A)
+#define PIN_MOTOR     4    // Base of BC557B PNP transistor via 1kΩ resistor
 #define PIN_BUZZER    5    // Active buzzer positive leg
 #define PIN_LED       2    // Onboard LED — GPIO2 on ESP32 DevKit V1, active HIGH
+
+// ── Motor Transistor Configuration ─────────────────────────────────────────────
+// Transistor replaced with CT BC557B JS (PNP BJT).
+// PNP High-Side Switch logic:
+//   GPIO LOW  (0V)   → Base pulled low → Transistor conducts → Motor ON
+//   GPIO HIGH (3.3V) → Base at 3.3V    → Transistor cut-off  → Motor OFF
+// Emitter MUST be wired to 3.3V rail (NOT 5V).
+#define MOTOR_ACTIVE_LOW  true
+
+#if MOTOR_ACTIVE_LOW
+  #define MOTOR_ON_LEVEL   LOW
+  #define MOTOR_OFF_LEVEL  HIGH
+#else
+  #define MOTOR_ON_LEVEL   HIGH
+  #define MOTOR_OFF_LEVEL  LOW
+#endif
+
+// ── Buzzer Configuration & Profiles ────────────────────────────────────────────
+// Most active buzzer modules (or PNP/transistor switched buzzers) are ACTIVE LOW.
+// ⚠ IF YOUR BUZZER BEEPS CONTINUOUSLY AT IDLE, SET BUZZER_ACTIVE_LOW TO true!
+// You can also toggle this at runtime via command: "BUZZER_INVERT".
+#define BUZZER_ACTIVE_LOW  false
+
+enum BuzzerProfile {
+  BUZ_HARD  = 0,   // Hard Buzzer: Solid loud continuous tone while vibrating
+  BUZ_SOFT  = 1,   // Soft Buzzer: Gentle, pleasant 20% micro-pulsed volume while vibrating
+  BUZ_SMART = 2,   // Smart Buzzer: Hard on EMERGENCY/ERROR, Soft on lessons/nav/success
+  BUZ_MUTE  = 3    // Mute: Vibration only (silent buzzer)
+};
+
+// ── GPS Configuration (GY-NEO6MV2 / u-blox NEO-6M) ───────────────────────────
+#define PIN_GPS_RX        16     // ESP32 RX2 ← Connect to GY-NEO6MV2 TXD
+#define PIN_GPS_TX        17     // ESP32 TX2 → Connect to GY-NEO6MV2 RXD
+#define GPS_BAUD          9600   // Default baud rate for NEO-6M modules
+#define GPS_LOG_INTERVAL  10000  // Serial monitor log interval (ms)
 
 // ── Battery ADC ────────────────────────────────────────────────────────────────
 // Set this to whichever GPIO pin your voltage-divider output is wired to.
@@ -144,32 +207,20 @@ enum Command {
   CMD_EMERGENCY,
   CMD_LOW_BATTERY,
   CMD_BATTERY_REQUEST,
+  CMD_GPS_REQUEST,
   CMD_TEST,
   CMD_SLEEP,
   CMD_WAKE,
+  CMD_BUZZER_HARD,
+  CMD_BUZZER_SOFT,
+  CMD_BUZZER_SMART,
+  CMD_BUZZER_MUTE,
+  CMD_BUZZER_INVERT,
   CMD_UNKNOWN
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  FORWARD DECLARATIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-Command parseCommand(const String& raw);
-void    processCommand(Command cmd);
-void    executePendingPattern();
-void    motorOn();
-void    motorOff();
-void    buzzerOn();
-void    buzzerOff();
-void    ledOn();
-void    ledOff();
-int     readBatteryPercent();
-void    sendBatteryResponse();
-void    checkBatteryWarnings();
-void    enterDeepSleep();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  PATTERN SEQUENCER — non-blocking, millis()-based
+//  PATTERN STRUCTURES (Must precede all function declarations for Arduino IDE)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 struct PatternStep {
@@ -188,6 +239,194 @@ struct PatternState {
   bool        running;
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FORWARD DECLARATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+Command parseCommand(const String& raw);
+void    processCommand(Command cmd);
+void    startPattern(const PatternStep* steps, uint8_t count);
+void    stopPattern();
+void    executePendingPattern();
+void    motorOn();
+void    motorOff();
+void    buzzerOn(bool isHard = false);
+void    buzzerOff();
+void    tickBuzzer();
+void    setBuzzerHardware(bool on);
+void    sendBuzzerResponse(const String& mode);
+void    ledOn();
+void    ledOff();
+int     readBatteryPercent();
+void    sendBatteryResponse();
+void    checkBatteryWarnings();
+void    updateGPS();
+void    sendGpsResponse();
+void    checkGpsLogging();
+void    enterDeepSleep();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  BLE GLOBALS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+static BLEServer*         pServer         = nullptr;
+static BLECharacteristic* pCharacteristic = nullptr;
+
+// volatile: written by BLE RTOS task (core 0), read by loop() (core 1)
+static volatile bool    bleConnected    = false;
+static volatile bool    bleOldConnected = false;
+static volatile Command pendingCmd      = CMD_NONE;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GPS GLOBALS & HELPERS (GY-NEO6MV2 / TinyGPS++)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+static TinyGPSPlus gps;
+static uint32_t    gGpsLastLog = 0;
+
+void updateGPS() {
+  while (Serial2.available() > 0) {
+    gps.encode(Serial2.read());
+  }
+}
+
+void sendGpsResponse() {
+  String resp;
+  if (gps.location.isValid()) {
+    resp = "GPS:" + String(gps.location.lat(), 6) + "," +
+                    String(gps.location.lng(), 6) + "," +
+                    String(gps.altitude.meters(), 1) + "m," +
+                    String(gps.speed.kmph(), 1) + "kmh," +
+                    String(gps.satellites.value()) + "sat";
+  } else {
+    resp = "GPS:NO_FIX,SATS:" + String(gps.satellites.value());
+  }
+  Serial.print("[GPS] "); Serial.println(resp);
+  if (bleConnected && pCharacteristic) {
+    pCharacteristic->setValue(resp.c_str());
+    pCharacteristic->notify();
+    Serial.print("[BLE] Sent: "); Serial.println(resp);
+  }
+}
+
+void checkGpsLogging() {
+  uint32_t now = millis();
+  if (now - gGpsLastLog < GPS_LOG_INTERVAL) return;
+  gGpsLastLog = now;
+
+  if (gps.location.isValid()) {
+    Serial.printf("[GPS] Fix: Lat=%.6f, Lng=%.6f, Alt=%.1fm, Spd=%.1f km/h, Sats=%d, HDOP=%.1f\n",
+                  gps.location.lat(), gps.location.lng(),
+                  gps.altitude.meters(), gps.speed.kmph(),
+                  gps.satellites.value(), gps.hdop.hdop());
+  } else {
+    Serial.printf("[GPS] Searching satellites... In view: %d, NMEA chars parsed: %u\n",
+                  gps.satellites.value(), (unsigned int)gps.charsProcessed());
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GPIO HELPERS & BUZZER CONTROLLER (Hard Buzzer / Soft Buzzer / Synced with Motor)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+static BuzzerProfile gBuzzerProfile    = BUZ_SOFT;   // Default: pleasant soft pulse
+static bool          gBuzzerActiveLow   = BUZZER_ACTIVE_LOW;
+static bool          gBuzzerWanted      = false;      // True when active sound is requested
+static bool          gBuzzerIsHardTone  = false;      // True if current sound is high-priority alert
+static uint32_t      gBuzzerPulseTimer  = 0;
+static bool          gBuzzerPulseState  = false;
+
+// Direct hardware pin drive respecting polarity
+void setBuzzerHardware(bool on) {
+  uint8_t level;
+  if (gBuzzerActiveLow) {
+    level = on ? LOW : HIGH;
+  } else {
+    level = on ? HIGH : LOW;
+  }
+  digitalWrite(PIN_BUZZER, level);
+}
+
+// Buzzer ON with selectable hard/soft priority
+void buzzerOn(bool isHard) {
+  if (gBuzzerProfile == BUZ_MUTE) {
+    setBuzzerHardware(false);
+    return;
+  }
+  gBuzzerWanted     = true;
+  gBuzzerIsHardTone = isHard;
+  gBuzzerPulseTimer = millis();
+  gBuzzerPulseState = true;
+  setBuzzerHardware(true);
+}
+
+// Buzzer OFF - guaranteed silence
+void buzzerOff() {
+  gBuzzerWanted     = false;
+  gBuzzerIsHardTone = false;
+  setBuzzerHardware(false);
+}
+
+// Motor driven by CT BC557B JS (PNP BJT — active LOW)
+// Buzzer sounds synchronously during vibration!
+void motorOn() {
+  digitalWrite(PIN_MOTOR, MOTOR_ON_LEVEL);
+  buzzerOn(gBuzzerIsHardTone);
+}
+
+void motorOff() {
+  digitalWrite(PIN_MOTOR, MOTOR_OFF_LEVEL);
+  buzzerOff();
+}
+
+// ESP32 DevKit V1 onboard LED — GPIO2, ACTIVE HIGH
+void ledOn()  { digitalWrite(PIN_LED, HIGH); }
+void ledOff() { digitalWrite(PIN_LED, LOW);  }
+
+// Non-blocking buzzer modulator — services Soft vs Hard profiles
+void tickBuzzer() {
+  if (!gBuzzerWanted || gBuzzerProfile == BUZ_MUTE) {
+    setBuzzerHardware(false);
+    return;
+  }
+
+  // Hard tone: solid continuous sound while vibrating
+  if (gBuzzerProfile == BUZ_HARD || (gBuzzerProfile == BUZ_SMART && gBuzzerIsHardTone)) {
+    setBuzzerHardware(true);
+    return;
+  }
+
+  // Soft tone: gentle micro-pulsing (2ms ON, 8ms OFF) ~ 20% duty cycle
+  // Dramatically softens the harsh beep into a comfortable tactile alert!
+  uint32_t now = millis();
+  if (gBuzzerPulseState) {
+    if (now - gBuzzerPulseTimer >= 2) {
+      gBuzzerPulseState = false;
+      gBuzzerPulseTimer = now;
+      setBuzzerHardware(false);
+    }
+  } else {
+    if (now - gBuzzerPulseTimer >= 8) {
+      gBuzzerPulseState = true;
+      gBuzzerPulseTimer = now;
+      setBuzzerHardware(true);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  BATTERY GLOBALS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+static int      gBattPercent     = 100;
+static uint32_t gBattLastRead    = 0;
+static uint8_t  gBattBadReads   = 0;   // consecutive suspicious reads counter
+static bool     gWarned20 = false, gWarned10 = false, gWarned5 = false;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PATTERN SEQUENCER — non-blocking, millis()-based
+// ═══════════════════════════════════════════════════════════════════════════════
+
 static PatternState gPattern;
 
 void startPattern(const PatternStep* steps, uint8_t count) {
@@ -197,8 +436,14 @@ void startPattern(const PatternStep* steps, uint8_t count) {
   gPattern.currentStep = 0;
   gPattern.stepStartMs = millis();
   gPattern.running     = true;
-  if (gPattern.steps[0].motorState)  motorOn();  else motorOff();
-  if (gPattern.steps[0].buzzerState) buzzerOn(); else buzzerOff();
+
+  gBuzzerIsHardTone = gPattern.steps[0].buzzerState;
+
+  if (gPattern.steps[0].motorState) {
+    motorOn();
+  } else {
+    motorOff();
+  }
 }
 
 void stopPattern() {
@@ -216,8 +461,14 @@ void executePendingPattern() {
     if (gPattern.currentStep >= gPattern.totalSteps) { stopPattern(); return; }
     gPattern.stepStartMs = now;
     PatternStep& ns = gPattern.steps[gPattern.currentStep];
-    if (ns.motorState)  motorOn();  else motorOff();
-    if (ns.buzzerState) buzzerOn(); else buzzerOff();
+
+    gBuzzerIsHardTone = ns.buzzerState;
+
+    if (ns.motorState) {
+      motorOn();
+    } else {
+      motorOff();
+    }
   }
 }
 
@@ -249,6 +500,7 @@ enum SelfTestState {
   ST_MOTOR_ON, ST_MOTOR_OFF,
   ST_BUZZER_ON, ST_BUZZER_OFF,
   ST_BATTERY,
+  ST_GPS,
   ST_DONE
 };
 
@@ -290,6 +542,16 @@ void tickSelfTest() {
     case ST_BATTERY: {
       int pct = readBatteryPercent();
       Serial.print("[INIT] Battery: "); Serial.print(pct); Serial.println("%");
+      gSelfTest = ST_GPS;
+      gSelfTestTimer = now;
+      break;
+    }
+    case ST_GPS: {
+      if (gps.charsProcessed() > 0) {
+        Serial.printf("[INIT] GPS: Communicating (%u NMEA bytes received)\n", (unsigned int)gps.charsProcessed());
+      } else {
+        Serial.println("[INIT] GPS: Initialized on UART2 (GPIO 16/17 @ 9600 baud)");
+      }
       Serial.println("[INIT] Self-test PASSED ✔");
       gSelfTest = ST_DONE;
       break;
@@ -297,40 +559,6 @@ void tickSelfTest() {
     default: gSelfTest = ST_DONE; break;
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  BLE GLOBALS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-static BLEServer*         pServer         = nullptr;
-static BLECharacteristic* pCharacteristic = nullptr;
-
-// volatile: written by BLE RTOS task (core 0), read by loop() (core 1)
-static volatile bool    bleConnected    = false;
-static volatile bool    bleOldConnected = false;
-static volatile Command pendingCmd      = CMD_NONE;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  BATTERY GLOBALS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-static int      gBattPercent     = 100;
-static uint32_t gBattLastRead    = 0;
-static uint8_t  gBattBadReads   = 0;   // consecutive suspicious reads counter
-static bool     gWarned20 = false, gWarned10 = false, gWarned5 = false;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  GPIO HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-void motorOn()  { digitalWrite(PIN_MOTOR,  HIGH); }
-void motorOff() { digitalWrite(PIN_MOTOR,  LOW);  }
-void buzzerOn() { digitalWrite(PIN_BUZZER, HIGH); }
-void buzzerOff(){ digitalWrite(PIN_BUZZER, LOW);  }
-
-// ESP32 DevKit V1 onboard LED — GPIO2, ACTIVE HIGH
-void ledOn()  { digitalWrite(PIN_LED, HIGH); }
-void ledOff() { digitalWrite(PIN_LED, LOW);  }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  BATTERY — ADC reading + percentage
@@ -383,6 +611,14 @@ void sendBatteryResponse() {
   pCharacteristic->setValue(resp.c_str());
   pCharacteristic->notify();
   Serial.print("[BATT] Sent: "); Serial.println(resp);
+}
+
+void sendBuzzerResponse(const String& mode) {
+  if (!bleConnected || !pCharacteristic) return;
+  String resp = "BUZZER:" + mode;
+  pCharacteristic->setValue(resp.c_str());
+  pCharacteristic->notify();
+  Serial.print("[BLE] Sent: "); Serial.println(resp);
 }
 
 void checkBatteryWarnings() {
@@ -438,6 +674,13 @@ void enterDeepSleep() {
   Serial.println("[PWR] Entering Deep Sleep...");
   Serial.flush();
   motorOff(); buzzerOff(); ledOff();
+
+#if MOTOR_ACTIVE_LOW
+  // Keep GPIO4 pulled HIGH during deep sleep so BC557B PNP transistor stays cut off
+  gpio_pullup_en((gpio_num_t)PIN_MOTOR);
+  gpio_pulldown_dis((gpio_num_t)PIN_MOTOR);
+#endif
+
   if (pServer) pServer->getAdvertising()->stop();
   BLEDevice::deinit(false);
   delay(100);
@@ -473,9 +716,15 @@ Command parseCommand(const String& raw) {
   if (cmd == "EMERGENCY")        return CMD_EMERGENCY;
   if (cmd == "LOW_BATTERY")      return CMD_LOW_BATTERY;
   if (cmd == "BATTERY_REQUEST")  return CMD_BATTERY_REQUEST;
+  if (cmd == "GPS" || cmd == "GPS_REQUEST" || cmd == "LOCATION") return CMD_GPS_REQUEST;
   if (cmd == "TEST")             return CMD_TEST;
   if (cmd == "SLEEP")            return CMD_SLEEP;
   if (cmd == "WAKE")             return CMD_WAKE;
+  if (cmd == "BUZZER_HARD" || cmd == "HARD_BUZZER" || cmd == "HARD") return CMD_BUZZER_HARD;
+  if (cmd == "BUZZER_SOFT" || cmd == "SOFT_BUZZER" || cmd == "SOFT") return CMD_BUZZER_SOFT;
+  if (cmd == "BUZZER_SMART" || cmd == "SMART_BUZZER" || cmd == "SMART") return CMD_BUZZER_SMART;
+  if (cmd == "BUZZER_MUTE" || cmd == "MUTE_BUZZER" || cmd == "MUTE" || cmd == "SILENT") return CMD_BUZZER_MUTE;
+  if (cmd == "BUZZER_INVERT" || cmd == "INVERT_BUZZER" || cmd == "INVERT") return CMD_BUZZER_INVERT;
   return CMD_UNKNOWN;
 }
 
@@ -520,12 +769,20 @@ void cancelContinuousModes() {
 
 void processCommand(Command cmd) {
   if (cmd != CMD_FORWARD && cmd != CMD_CALL &&
-      cmd != CMD_BATTERY_REQUEST && cmd != CMD_LOW_BATTERY) {
+      cmd != CMD_BATTERY_REQUEST && cmd != CMD_LOW_BATTERY &&
+      cmd != CMD_GPS_REQUEST &&
+      cmd != CMD_BUZZER_HARD && cmd != CMD_BUZZER_SOFT &&
+      cmd != CMD_BUZZER_SMART && cmd != CMD_BUZZER_MUTE &&
+      cmd != CMD_BUZZER_INVERT) {
     if (cmd == CMD_STOP || cmd == CMD_CALL_STOP) cancelContinuousModes();
     else if (gForwardMode || gCallMode)            cancelContinuousModes();
   }
   if (cmd != CMD_FORWARD && cmd != CMD_CALL &&
       cmd != CMD_BATTERY_REQUEST && cmd != CMD_LOW_BATTERY &&
+      cmd != CMD_GPS_REQUEST &&
+      cmd != CMD_BUZZER_HARD && cmd != CMD_BUZZER_SOFT &&
+      cmd != CMD_BUZZER_SMART && cmd != CMD_BUZZER_MUTE &&
+      cmd != CMD_BUZZER_INVERT &&
       cmd != CMD_CALL_STOP && cmd != CMD_STOP &&
       cmd != CMD_SLEEP && cmd != CMD_WAKE) {
     stopPattern();
@@ -595,11 +852,36 @@ void processCommand(Command cmd) {
     case CMD_EMERGENCY:
       Serial.println("[CMD] EMERGENCY");
       cancelContinuousModes();
-      startPattern(PAT_EMERGENCY, PAT_COUNT(PAT_EMERGENCY)); break;
+      startPattern(PAT_EMERGENCY, PAT_COUNT(PAT_EMERGENCY));
+      sendGpsResponse(); break;
     case CMD_LOW_BATTERY:
       Serial.println("[CMD] LOW_BATTERY"); gLowBattMode = true; break;
     case CMD_BATTERY_REQUEST:
       Serial.println("[CMD] BATTERY_REQUEST"); sendBatteryResponse(); break;
+    case CMD_GPS_REQUEST:
+      Serial.println("[CMD] GPS_REQUEST"); sendGpsResponse(); break;
+    case CMD_BUZZER_HARD:
+      gBuzzerProfile = BUZ_HARD;
+      Serial.println("[BUZZER] Mode: HARD (Solid 100% tone while vibrating)");
+      sendBuzzerResponse("HARD"); break;
+    case CMD_BUZZER_SOFT:
+      gBuzzerProfile = BUZ_SOFT;
+      Serial.println("[BUZZER] Mode: SOFT (Gentle 20% micro-pulse tone while vibrating)");
+      sendBuzzerResponse("SOFT"); break;
+    case CMD_BUZZER_SMART:
+      gBuzzerProfile = BUZ_SMART;
+      Serial.println("[BUZZER] Mode: SMART (Hard on Alert/Error, Soft on Lessons/Nav)");
+      sendBuzzerResponse("SMART"); break;
+    case CMD_BUZZER_MUTE:
+      gBuzzerProfile = BUZ_MUTE;
+      buzzerOff();
+      Serial.println("[BUZZER] Mode: MUTE (Silent - vibration only)");
+      sendBuzzerResponse("MUTE"); break;
+    case CMD_BUZZER_INVERT:
+      gBuzzerActiveLow = !gBuzzerActiveLow;
+      buzzerOff();
+      Serial.printf("[BUZZER] Hardware polarity toggled! ACTIVE_LOW is now %s\n", gBuzzerActiveLow ? "TRUE (LOW=ON)" : "FALSE (HIGH=ON)");
+      sendBuzzerResponse(gBuzzerActiveLow ? "ACTIVE_LOW" : "ACTIVE_HIGH"); break;
     case CMD_TEST:
       Serial.println("[CMD] TEST");
       startPattern(PAT_TEST, PAT_COUNT(PAT_TEST)); break;
@@ -746,16 +1028,23 @@ void setup() {
 
   Serial.println();
   Serial.println("╔═══════════════════════════════════════════════╗");
-  Serial.println("║      SPARSH SENSEBAND — Firmware v2.2        ║");
-  Serial.println("║   AI Powered Haptic Learning Companion       ║");
-  Serial.println("║   Target: ESP32 DevKit V1  |  BLE Wearable   ║");
+  Serial.println("║      SPARSH SENSEBAND — Firmware v2.3        ║");
+  Serial.println("║   AI Powered Haptic & GPS Learning Companion ║");
+  Serial.println("║   Target: ESP32 DevKit V1  |  BLE + GPS      ║");
   Serial.println("╚═══════════════════════════════════════════════╝");
   Serial.println();
 
   // ── GPIO ────────────────────────────────────────────────────────────────────
-  pinMode(PIN_MOTOR,  OUTPUT); motorOff();
-  pinMode(PIN_BUZZER, OUTPUT); buzzerOff();
-  pinMode(PIN_LED,    OUTPUT); ledOff();
+  pinMode(PIN_MOTOR,  OUTPUT);
+  motorOff(); // Sets HIGH immediately so BC557B PNP doesn't pulse on boot
+  pinMode(PIN_BUZZER, OUTPUT);
+  buzzerOff();
+  pinMode(PIN_LED,    OUTPUT);
+  ledOff();
+
+  // ── GPS Serial (Hardware UART2 on GPIO 16/17 @ 9600 baud) ───────────────────
+  Serial2.begin(GPS_BAUD, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+  Serial.println("[INIT] GPS: GY-NEO6MV2 initialized on UART2 (RX=GPIO16, TX=GPIO17)");
 
   // ── ADC ─────────────────────────────────────────────────────────────────────
   analogReadResolution(12);
@@ -779,30 +1068,50 @@ void setup() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 void loop() {
-  // 1. Advance self-test state machine (no-op after ~1.5s)
+  // 1. Ingest GPS NMEA stream from UART2 (non-blocking)
+  updateGPS();
+
+  // 2. Advance self-test state machine (no-op after ~1.5s)
   tickSelfTest();
 
-  // 2. Process pending BLE command
+  // 3. Process pending BLE command
   Command cmd = (Command)pendingCmd;
   if (cmd != CMD_NONE) {
     pendingCmd = CMD_NONE;
     processCommand(cmd);
   }
 
-  // 3. Drive haptic pattern sequencer
+  // 4. Drive haptic pattern sequencer
   executePendingPattern();
 
-  // 4. Drive continuous modes (FORWARD / CALL / LOW_BATTERY)
+  // 5. Drive continuous modes (FORWARD / CALL / LOW_BATTERY)
   tickContinuousModes();
 
-  // 5. Battery monitoring (every 10s)
+  // 6. Drive buzzer modulation (handles soft micro-pulses while vibrating)
+  tickBuzzer();
+
+  // 7. Battery monitoring (every 30s)
   checkBatteryWarnings();
 
-  // 6. Track BLE state
+  // 8. Periodic GPS logging to Serial Monitor (every 10s)
+  checkGpsLogging();
+
+  // 9. Serial Monitor command input (e.g., type SOFT, HARD, MUTE, INVERT, TEST in Serial Monitor)
+  if (Serial.available() > 0) {
+    String serInput = Serial.readStringUntil('\n');
+    serInput.trim();
+    if (serInput.length() > 0) {
+      Serial.print("[SERIAL] Ingesting command: \""); Serial.print(serInput); Serial.println("\"");
+      Command sCmd = parseCommand(serInput);
+      processCommand(sCmd);
+    }
+  }
+
+  // 10. Track BLE state
   if (!bleConnected && bleOldConnected) bleOldConnected = false;
   if ( bleConnected && !bleOldConnected) bleOldConnected = true;
 
-  // 7. LED heartbeat when disconnected (3-second slow blink)
+  // 11. LED heartbeat when disconnected (3-second slow blink)
   if (!bleConnected) {
     static uint32_t lastBlink = 0;
     uint32_t now = millis();
@@ -810,7 +1119,7 @@ void loop() {
     else if (now - lastBlink >= 100)  {                  ledOff(); }
   }
 
-  // 8. Yield to FreeRTOS — lets idle task run, which resets the TWDT.
-  //    Without this, the BLE + main task could starve the watchdog.
+  // 12. Yield to FreeRTOS — lets idle task run, which resets the TWDT.
+  //     Without this, the BLE + main task could starve the watchdog.
   vTaskDelay(1);
 }
