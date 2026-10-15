@@ -274,75 +274,206 @@ export default function BrailleLabPage() {
     speak('Downloading Braille Ready BRF file for tactile display');
   };
 
-  // ── Printable Tactile Embosser Document ──
-  const handleDownloadBraillePDF = () => {
+  // ── Convert Typed Text or Braille Cells to PDF Document ──
+  const handleDownloadBraillePDF = (customText?: string) => {
+    const textToConvert = (customText !== undefined && customText.trim().length > 0) ? customText : inputText;
+    if (!textToConvert || textToConvert.trim().length === 0) {
+      alert('Please type or paste some text before converting to PDF.');
+      return;
+    }
+    const bOutput = convertTextToBraille(textToConvert);
+
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) {
+      alert('Please allow popups in your browser to download the converted Braille PDF.');
+      return;
+    }
+
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Sparsh Tactile Braille Embossing Sheet</title>
+          <title>Sparsh_Braille_Document_${Date.now()}.pdf</title>
           <style>
-            body { font-family: 'Courier New', monospace; padding: 40px; color: #000; background: #fff; }
-            .header { border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 25px; }
-            .title { font-size: 24px; font-weight: bold; }
-            .subtitle { font-size: 13px; color: #444; margin-top: 5px; }
-            .section { margin-bottom: 30px; }
-            .section-title { font-size: 15px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #999; padding-bottom: 5px; margin-bottom: 12px; }
-            .original-text { font-size: 17px; line-height: 1.6; color: #222; }
-            .braille-output { font-size: 52px; letter-spacing: 0.35em; font-family: monospace; line-height: 1.8; background: #f8f8f8; padding: 25px; border: 2px dashed #000; border-radius: 8px; word-break: break-all; }
-            .dot-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 15px; }
-            .dot-card { border: 2px solid #000; padding: 10px 14px; border-radius: 8px; text-align: center; width: 75px; }
-            .dot-letter { font-size: 18px; font-weight: bold; text-transform: uppercase; }
-            .dot-symbol { font-size: 34px; margin: 4px 0; }
-            .dot-nums { font-size: 11px; font-weight: bold; color: #555; }
+            @page {
+              size: A4;
+              margin: 1.5cm;
+            }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              padding: 24px;
+              color: #111;
+              background: #fff;
+              line-height: 1.5;
+            }
+            .header {
+              border-bottom: 3px solid #6C63FF;
+              padding-bottom: 12px;
+              margin-bottom: 22px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+            }
+            .title {
+              font-size: 24px;
+              font-weight: 800;
+              color: #1e1b4b;
+            }
+            .subtitle {
+              font-size: 13px;
+              color: #6366f1;
+              font-weight: 600;
+              margin-top: 3px;
+            }
+            .meta {
+              text-align: right;
+              font-size: 11px;
+              color: #64748b;
+            }
+            .section {
+              margin-bottom: 24px;
+            }
+            .section-title {
+              font-size: 13px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              color: #475569;
+              border-bottom: 1px solid #e2e8f0;
+              padding-bottom: 5px;
+              margin-bottom: 10px;
+            }
+            .original-text {
+              font-size: 15px;
+              line-height: 1.6;
+              color: #1e293b;
+              background: #f8fafc;
+              padding: 14px 18px;
+              border-radius: 8px;
+              border-left: 4px solid #00C9A7;
+            }
+            .braille-container {
+              background: #faf5ff;
+              border: 2px dashed #a855f7;
+              border-radius: 10px;
+              padding: 20px;
+            }
+            .braille-output {
+              font-size: 40px;
+              letter-spacing: 0.35em;
+              font-family: monospace;
+              line-height: 1.7;
+              color: #581c87;
+              word-break: break-all;
+            }
+            .dot-grid {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+              margin-top: 12px;
+            }
+            .dot-card {
+              border: 1.5px solid #cbd5e1;
+              background: #ffffff;
+              padding: 8px 10px;
+              border-radius: 8px;
+              text-align: center;
+              min-width: 65px;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            .dot-letter {
+              font-size: 15px;
+              font-weight: bold;
+              color: #334155;
+            }
+            .dot-symbol {
+              font-size: 28px;
+              margin: 3px 0;
+              color: #7c3aed;
+            }
+            .dot-nums {
+              font-size: 10px;
+              font-weight: 700;
+              color: #059669;
+            }
+            .footer {
+              margin-top: 35px;
+              padding-top: 12px;
+              border-top: 1px solid #e2e8f0;
+              font-size: 11px;
+              color: #94a3b8;
+              text-align: center;
+            }
+            @media print {
+              body { padding: 0; }
+            }
           </style>
         </head>
         <body>
           <div class="header">
-            <div class="title">⠃ Sparsh Tactile Braille Embossing Document</div>
-            <div class="subtitle">Standard 6-Dot Grade 1 Braille • Suitable for swell paper, tactile embossers, and touch practice</div>
+            <div>
+              <div class="title">SPARSH Tactile Braille Worksheet</div>
+              <div class="subtitle">Standard 6-Dot Grade 1 (UEB & Bharati Braille) Conversion</div>
+            </div>
+            <div class="meta">
+              <div><strong>Date:</strong> ${dateStr}</div>
+              <div><strong>Platform:</strong> SPARSH Inclusive Education</div>
+            </div>
           </div>
 
           <div class="section">
-            <div class="section-title">Original Document Content</div>
-            <div class="original-text">${inputText}</div>
+            <div class="section-title">Original Text Content (${textToConvert.length} characters)</div>
+            <div class="original-text">${textToConvert}</div>
           </div>
 
           <div class="section">
-            <div class="section-title">Tactile Braille Output</div>
-            <div class="braille-output">${brailleOutput}</div>
+            <div class="section-title">Tactile 6-Dot Braille Output (Embossing & Reading Ready)</div>
+            <div class="braille-container">
+              <div class="braille-output">${bOutput}</div>
+            </div>
           </div>
 
           <div class="section">
-            <div class="section-title">Letter by Letter Dot Cell Breakdown</div>
+            <div class="section-title">Cell-by-Cell Dot Pattern Reference</div>
             <div class="dot-grid">
-              ${inputText.split('').slice(0, 60).map(char => {
-                if (char === ' ') return '';
+              ${textToConvert.split('').slice(0, 80).map(char => {
+                if (char === ' ') return '<div style="width: 16px;"></div>';
                 const lower = char.toLowerCase();
                 const bChar = TEXT_TO_BRAILLE_MAP[lower] || TEXT_TO_BRAILLE_MAP[char] || char;
                 const dots = CHAR_TO_DOTS_MAP[lower] || [];
-                return `
-                  <div class="dot-card">
-                    <div class="dot-letter">${char}</div>
-                    <div class="dot-symbol">${bChar}</div>
-                    <div class="dot-nums">${dots.length ? 'Dots ' + dots.join(',') : ''}</div>
-                  </div>
-                `;
+                const dotText = dots.length ? 'Dots ' + dots.join(',') : '';
+                return (
+                  '<div class="dot-card">' +
+                    '<div class="dot-letter">' + char + '</div>' +
+                    '<div class="dot-symbol">' + bChar + '</div>' +
+                    '<div class="dot-nums">' + dotText + '</div>' +
+                  '</div>'
+                );
               }).join('')}
             </div>
           </div>
 
+          <div class="footer">
+            Converted with SPARSH Braille Lab • Select &quot;Save as PDF&quot; in the dialog to save as file.
+          </div>
+
           <script>
-            window.onload = () => { window.print(); };
+            window.onload = () => {
+              window.print();
+            };
           </script>
         </body>
       </html>
     `);
     printWindow.document.close();
-    speak('Opening printable Braille embossing sheet');
+    speak('Converting Braille document to PDF. Choose Save as PDF in the window.');
   };
 
   // ── 6-Dot Keypad Logic ──
@@ -397,11 +528,12 @@ export default function BrailleLabPage() {
             <span>Read Aloud (TTS)</span>
           </button>
           <button
-            onClick={handleDownloadBraillePDF}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] hover:from-[#5b52f9] hover:to-[#00b899] text-white font-bold text-xs shadow-md shadow-[#6C63FF]/20 transition flex items-center gap-2"
+            onClick={() => handleDownloadBraillePDF()}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] hover:from-[#5b52f9] hover:to-[#00b899] text-white font-bold text-xs shadow-md shadow-[#6C63FF]/20 transition flex items-center gap-2 active:scale-95 cursor-pointer"
+            title="Convert and download this Braille sheet as a formatted PDF"
           >
-            <Printer className="w-4 h-4" />
-            <span>Print / Emboss PDF</span>
+            <Download className="w-4 h-4" />
+            <span>Convert to PDF</span>
           </button>
         </div>
       </div>
@@ -806,16 +938,28 @@ export default function BrailleLabPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (translatedSentence) setInputText(translatedSentence);
-                setActiveTab('text');
-              }}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-white/10 transition"
-            >
-              Transfer Composed Text to Full Braille Translator ➔
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (translatedSentence) setInputText(translatedSentence);
+                  setActiveTab('text');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-white/10 transition"
+              >
+                Transfer to Editor ➔
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadBraillePDF(translatedSentence)}
+                disabled={!translatedSentence.trim()}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] hover:opacity-95 disabled:opacity-40 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                title="Convert typed Braille into a downloadable PDF"
+              >
+                <Download className="w-4 h-4" />
+                <span>Convert to PDF</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -844,7 +988,7 @@ export default function BrailleLabPage() {
             <button
               type="button"
               onClick={handleCopyBraille}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-white/10 transition flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-white/10 transition flex items-center gap-1.5 cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-300" />}
               <span>{copied ? 'Copied!' : 'Copy Braille'}</span>
@@ -854,20 +998,21 @@ export default function BrailleLabPage() {
             <button
               type="button"
               onClick={handleDownloadBRF}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-white/10 transition flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-white/10 transition flex items-center gap-1.5 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-indigo-400" />
               <span>Export .BRF</span>
             </button>
 
-            {/* Print / Emboss PDF */}
+            {/* Convert to PDF */}
             <button
               type="button"
-              onClick={handleDownloadBraillePDF}
-              className="px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5b52f9] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+              onClick={() => handleDownloadBraillePDF()}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] hover:opacity-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+              title="Convert and download as printable Braille PDF document"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print / Emboss</span>
+              <Download className="w-3.5 h-3.5" />
+              <span>Convert to PDF</span>
             </button>
           </div>
         </div>

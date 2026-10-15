@@ -263,6 +263,54 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     });
   }, [speak]);
 
+// ── Web Audio Chime Synthesizer (Instant local feedback with zero audio file latency) ──
+function playAudioTone(type: 'wake' | 'listen' | 'stop') {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    if (type === 'wake') {
+      // Cheerful two-tone wake chime: C5 (523Hz) -> A5 (880Hz)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(880, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.28);
+    } else if (type === 'listen') {
+      // Crisp listening chirp
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(659.25, now);
+      osc.frequency.exponentialRampToValueAtTime(987.77, now + 0.1);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    } else {
+      // Soft pause tone
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(392, now + 0.12);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    }
+  } catch (_) {}
+}
+
   // ── Toggle Listening Action (Single / Push-to-Talk) ─────────────────────────
   const toggleListening = useCallback(() => {
     if (!SpeechRecognizer.isSupported()) {
@@ -271,6 +319,7 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     }
 
     if (state === 'listening') {
+      playAudioTone('stop');
       stopAll();
       speak('Voice listening paused.');
     } else {
@@ -280,15 +329,16 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
         isSpeakingRef.current = false;
       }
 
+      playAudioTone('listen');
+      // Immediately reflect listening state in UI so user sees the mic active without delay
+      setState('listening');
+
       if (activationManagerRef.current) {
         activationManagerRef.current.requestWakeLock();
       }
 
       if (recognizerRef.current) {
-        const started = recognizerRef.current.start(true); // continuous listening mode
-        if (started) {
-          setState('listening');
-        }
+        recognizerRef.current.start(true); // continuous listening mode
       }
     }
   }, [state, stopAll, speak]);
@@ -301,15 +351,17 @@ export function VoiceAssistantProvider({ children }: { children: React.ReactNode
     const recognizer = new SpeechRecognizer('en-IN', {
       onStart: () => setState('listening'),
       onResult: (heardText) => {
-        // Check for wake phrase
+        // Check for wake phrase ("hello sparsh" or "hey sparsh")
         if (activationManagerRef.current) {
           const wakeCheck = activationManagerRef.current.checkWakePhrase(heardText);
           if (wakeCheck.matched) {
+            playAudioTone('wake');
             if (wakeCheck.stripped && wakeCheck.stripped.length > 0) {
               executeCommand(wakeCheck.stripped);
             } else {
-              // User literally said "hello sparsh" -> immediately activate smart glasses camera!
-              executeCommand('describe what is in front of me');
+              // User said "hello sparsh" -> WAKE UP: play audio chime, greet warmly, stay listening!
+              setState('listening');
+              speak('Hello! I am Sparsh. How can I help you today?');
             }
             return;
           }

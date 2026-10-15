@@ -7,9 +7,76 @@ import { AccessibilityProvider } from '@/components/AccessibilityContext';
 
 const Sidebar = dynamic(() => import('@/components/layout/Sidebar'), { ssr: false });
 const AccessibilityToolbar = dynamic(() => import('@/components/AccessibilityToolbar'), { ssr: false });
-import { VoiceAssistantProvider } from '@/components/voicevision/VoiceAssistantProvider';
+import { VoiceAssistantProvider, useVoiceAssistant } from '@/components/voicevision/VoiceAssistantProvider';
 const VoiceAssistantControl = dynamic(() => import('@/components/voicevision/VoiceAssistantControl').then(m => m.VoiceAssistantControl), { ssr: false });
 const LiveClassNotification = dynamic(() => import('@/components/live/LiveClassNotification'), { ssr: false });
+
+// ── Top Header Voice Navigation Bar Control ───────────────────────────────────
+function HeaderVoiceNav() {
+  const { state, toggleListening, isAlwaysListening, toggleAlwaysListening } = useVoiceAssistant();
+
+  return (
+    <div className="flex items-center gap-1.5 sm:gap-2">
+      {/* Voice Assistant Mic Action Button */}
+      <button
+        onClick={toggleListening}
+        className={`inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer border ${
+          state === 'listening'
+            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/60 shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse'
+            : state === 'thinking'
+            ? 'bg-amber-500/20 text-amber-300 border-amber-400/40'
+            : state === 'speaking'
+            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40'
+            : 'bg-white/10 hover:bg-white/15 text-white/90 border-white/20 hover:border-white/40'
+        }`}
+        title="Voice Navigation (Click to speak or say 'Hello Sparsh')"
+        aria-label="Voice Navigation Assistant"
+      >
+        {state === 'listening' ? (
+          <>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="tracking-wide">Listening...</span>
+          </>
+        ) : state === 'thinking' ? (
+          <>
+            <span className="w-2.5 h-2.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></span>
+            <span>Thinking...</span>
+          </>
+        ) : state === 'speaking' ? (
+          <>
+            <span className="text-cyan-400 text-sm animate-bounce">🔊</span>
+            <span>Speaking...</span>
+          </>
+        ) : (
+          <>
+            <span className="text-sm">🎙️</span>
+            <span className="hidden sm:inline">Voice Nav</span>
+            <span className="sm:hidden">Mic</span>
+          </>
+        )}
+      </button>
+
+      {/* Wake Word Badge */}
+      <button
+        type="button"
+        onClick={() => toggleAlwaysListening()}
+        title="Wake word: Say 'Hello Sparsh' anytime to activate assistant. Click to toggle Always-On."
+        className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer ${
+          isAlwaysListening
+            ? 'bg-[#00C9A7]/20 border-[#00C9A7]/50 text-[#00C9A7]'
+            : 'bg-black/40 border-white/10 text-white/60 hover:text-white hover:border-[#00C9A7]/40'
+        }`}
+      >
+        <span className={isAlwaysListening ? 'text-[#00C9A7] animate-pulse' : 'text-amber-400'}>✨</span>
+        <span className="font-mono">&quot;Hello Sparsh&quot;</span>
+        {isAlwaysListening && <span className="text-[9px] uppercase px-1 bg-[#00C9A7]/30 rounded text-[#00C9A7] font-bold">Always On</span>}
+      </button>
+    </div>
+  );
+}
 
 // Maximum time to wait for auth + profile before giving up and redirecting
 const AUTH_TIMEOUT_MS = 5000;
@@ -173,7 +240,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                <HeaderVoiceNav />
                 <button
                   onClick={handleSignOut}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-rose-300 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 hover:text-rose-100 hover:border-rose-500/50 transition-all shadow-sm active:scale-95 cursor-pointer"

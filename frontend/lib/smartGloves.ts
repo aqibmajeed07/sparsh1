@@ -301,20 +301,15 @@ class SmartGlovesManager {
     this.setStatus('simulated', 'simulator');
 
     let seq = 1;
+    // Clamp to the real 12-bit ADC range so low values (70–200) stay low
+    const clamp = (v: number) => Math.max(0, Math.min(4095, v));
+    const noise = () => Math.round((Math.random() - 0.5) * 6); // ±3 counts
+
     this.simulatorTimer = setInterval(() => {
       seq++;
-      // Add slight micro-noise (±3 counts) for natural human tremor simulation
-      const noise = () => Math.round((Math.random() - 0.5) * 6);
-      const raw: [number, number, number, number, number] = [
-        Math.max(200, Math.min(3800, this.simRaw[0] + noise())),
-        Math.max(200, Math.min(3800, this.simRaw[1] + noise())),
-        Math.max(200, Math.min(3800, this.simRaw[2] + noise())),
-        Math.max(200, Math.min(3800, this.simRaw[3] + noise())),
-        Math.max(200, Math.min(3800, this.simRaw[4] + noise())),
-      ];
-
+      const raw = this.simRaw.map(v => clamp(v + noise())) as [number, number, number, number, number];
       this.processRawReadings(raw, seq, 'simulator');
-    }, 40); // 25 Hz simulation rate
+    }, 40); // 25 Hz
   }
 
   public setSimulatorFinger(fingerIdx: 0 | 1 | 2 | 3 | 4, normalizedValue: number) {
@@ -324,30 +319,59 @@ class SmartGlovesManager {
     this.simRaw[fingerIdx] = Math.round(s + val * (b - s));
   }
 
-  public setSimulatorPreset(preset: 'open' | 'fist' | 'peace' | 'ok' | 'iloveyou' | 'point' | 'water') {
+  public setSimulatorPreset(preset: 'open' | 'fist' | 'peace' | 'ok' | 'iloveyou' | 'point' | 'water' | 'thumbsup' | 'help') {
     switch (preset) {
       case 'open':
-        this.setSimulatorVector([0.0, 0.0, 0.0, 0.0, 0.0]);
+        this.setSimulatorVector([0.0, 0.0, 0.0, 0.0, 0.0]); // All straight: Hello / Open Palm
         break;
       case 'fist':
-        this.setSimulatorVector([1.0, 1.0, 1.0, 1.0, 1.0]);
+        this.setSimulatorVector([1.0, 1.0, 1.0, 1.0, 1.0]); // All bent: Closed Fist / Yes
+        break;
+      case 'thumbsup':
+      case 'help':
+        this.setSimulatorVector([0.0, 1.0, 1.0, 1.0, 1.0]); // Thumb upright, rest bent: Thumbs Up / Help
+        break;
+      case 'point':
+        this.setSimulatorVector([1.0, 0.0, 1.0, 1.0, 1.0]); // Index extended: Point / Look
         break;
       case 'peace':
-        this.setSimulatorVector([1.0, 0.0, 0.0, 1.0, 1.0]);
+        this.setSimulatorVector([1.0, 0.0, 0.0, 1.0, 1.0]); // Index & Middle extended: Peace / Two
+        break;
+      case 'water':
+        this.setSimulatorVector([1.0, 0.0, 0.0, 0.0, 1.0]); // 3 middle extended: Water / W
+        break;
+      case 'iloveyou':
+        this.setSimulatorVector([0.0, 0.0, 1.0, 1.0, 0.0]); // Thumb, Index, Pinky extended: ILY
         break;
       case 'ok':
         this.setSimulatorVector([0.9, 0.9, 0.0, 0.0, 0.0]);
         break;
-      case 'iloveyou':
-        this.setSimulatorVector([0.0, 0.0, 1.0, 1.0, 0.0]);
-        break;
-      case 'point':
-        this.setSimulatorVector([1.0, 0.0, 1.0, 1.0, 1.0]);
-        break;
-      case 'water':
-        this.setSimulatorVector([1.0, 0.0, 0.0, 0.0, 1.0]);
-        break;
     }
+  }
+
+  // Auto-cycles through the 6 major signs so student immediately sees gestures even if physical glove isn't bending
+  public startDemoCycle(intervalMs = 3000) {
+    this.startSimulator();
+    const demoPresets: Array<'open' | 'thumbsup' | 'point' | 'peace' | 'water' | 'iloveyou' | 'fist'> = [
+      'open',
+      'thumbsup',
+      'point',
+      'peace',
+      'water',
+      'iloveyou',
+      'fist',
+    ];
+    let idx = 0;
+    this.setSimulatorPreset(demoPresets[0]);
+
+    if ((this as any).demoCycleTimer) {
+      clearInterval((this as any).demoCycleTimer);
+    }
+    (this as any).demoCycleTimer = setInterval(() => {
+      idx = (idx + 1) % demoPresets.length;
+      this.setSimulatorPreset(demoPresets[idx]);
+      this.log(`✨ Demonstrating gesture: ${demoPresets[idx].toUpperCase()}`);
+    }, intervalMs);
   }
 
   public setSimulatorVector(vec: [number, number, number, number, number]) {
@@ -361,6 +385,10 @@ class SmartGlovesManager {
     if (this.simulatorTimer) {
       clearInterval(this.simulatorTimer);
       this.simulatorTimer = null;
+    }
+    if ((this as any).demoCycleTimer) {
+      clearInterval((this as any).demoCycleTimer);
+      (this as any).demoCycleTimer = null;
     }
 
     if (this.bleDevice && this.bleDevice.gatt && this.bleDevice.gatt.connected) {

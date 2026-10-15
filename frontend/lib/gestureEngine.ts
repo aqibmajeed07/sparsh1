@@ -304,9 +304,9 @@ export class GestureRecognitionEngine {
   // Temporal Debounce & Stability
   private lastCandidateId: string | null = null;
   private candidateStartTime: number = 0;
-  private candidateHoldMs: number = 320; // Must hold steady for 320ms
+  private candidateHoldMs: number = 100; // Ultra-fast, responsive hold duration (100ms vs previous 320ms)
   private confirmedGestureId: string | null = null;
-  private minConfidenceThreshold: number = 0.65; // 65% minimum confidence
+  private minConfidenceThreshold: number = 0.55; // Lowered to 55% for instant responsiveness
 
   // Dynamic Trajectory Window for Temporal Gesture Extension
   private trajectoryBuffer: Array<{ time: number; vector: [number, number, number, number, number] }> = [];
@@ -342,11 +342,68 @@ export class GestureRecognitionEngine {
   }
 
   public setHoldDuration(ms: number): void {
-    this.candidateHoldMs = Math.max(100, Math.min(1500, ms));
+    this.candidateHoldMs = Math.max(50, Math.min(1500, ms));
   }
 
   /**
-   * Euclidean Distance-based Template Matching
+   * Deflection Fallback Heuristic:
+   * Maps partial or low-deflection finger bends directly to 6-7 core sign poses
+   * even when physical glove hardware is reading low or noisy ADC values.
+   */
+  private detectDeflectionSign(vector: [number, number, number, number, number]): { template: StaticGestureTemplate; confidence: number } | null {
+    const [thumb, index, middle, ring, little] = vector;
+    const isBent = (v: number) => v > 0.40;
+    const isStraight = (v: number) => v < 0.45;
+
+    // 1. Thumbs Up / Help: Thumb straight, rest bent
+    if (isStraight(thumb) && isBent(index) && isBent(middle) && (isBent(ring) || isBent(little))) {
+      const tpl = this.templates.find(t => t.id === 'word_help') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'word_help');
+      if (tpl) return { template: tpl, confidence: 0.88 };
+    }
+
+    // 2. Point / Look: Index straight, rest bent
+    if (isStraight(index) && isBent(middle) && isBent(ring) && (isBent(thumb) || isBent(little))) {
+      const tpl = this.templates.find(t => t.id === 'word_point') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'word_point');
+      if (tpl) return { template: tpl, confidence: 0.88 };
+    }
+
+    // 3. Peace / Victory: Index & Middle straight, others bent
+    if (isStraight(index) && isStraight(middle) && isBent(ring) && (isBent(thumb) || isBent(little))) {
+      const tpl = this.templates.find(t => t.id === 'letter_v') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'letter_v');
+      if (tpl) return { template: tpl, confidence: 0.88 };
+    }
+
+    // 4. Water / W: Index, Middle, Ring straight, Thumb or Little bent
+    if (isStraight(index) && isStraight(middle) && isStraight(ring) && (isBent(thumb) || isBent(little))) {
+      const tpl = this.templates.find(t => t.id === 'word_water') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'word_water');
+      if (tpl) return { template: tpl, confidence: 0.86 };
+    }
+
+    // 5. I Love You (ILY): Thumb, Index, Little straight, Middle & Ring bent
+    if (isStraight(thumb) && isStraight(index) && isStraight(little) && (isBent(middle) || isBent(ring))) {
+      const tpl = this.templates.find(t => t.id === 'phrase_iloveyou') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'phrase_iloveyou');
+      if (tpl) return { template: tpl, confidence: 0.90 };
+    }
+
+    // 6. Fist / Yes: All fingers bent
+    const bentCount = vector.filter(isBent).length;
+    if (bentCount >= 4) {
+      const tpl = this.templates.find(t => t.id === 'word_yes') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'word_yes');
+      if (tpl) return { template: tpl, confidence: 0.85 };
+    }
+
+    // 7. Open Hand / Hello: All fingers straight
+    const straightCount = vector.filter(isStraight).length;
+    if (straightCount >= 4) {
+      const tpl = this.templates.find(t => t.id === 'word_hello') || DEFAULT_GESTURE_TEMPLATES.find(t => t.id === 'word_hello');
+      if (tpl) return { template: tpl, confidence: 0.85 };
+    }
+
+    return null;
+  }
+
+  /**
+   * Euclidean Distance-based Template Matching + Fast Deflection Fallback
    * Distance = sqrt( sum( (live_i - template_i)^2 ) / 5 )
    * Normalized Confidence = clamp(1.0 - (dist / tolerance), 0, 1)
    */
@@ -383,8 +440,21 @@ export class GestureRecognitionEngine {
       }
     }
 
-    // Reject unknown if below confidence threshold
+    // Check Deflection Fallback if standard Euclidean template did not match
     if (!bestMatch || maxConfidence < this.minConfidenceThreshold) {
+      const deflectionMatch = this.detectDeflectionSign(vector);
+      if (deflectionMatch) {
+        return {
+          gesture: deflectionMatch.template,
+          text: deflectionMatch.template.text,
+          confidence: deflectionMatch.confidence,
+          distance: Number(minDistance.toFixed(3)),
+          isUnknown: false,
+          timestamp: now,
+          rawVector: vector,
+        };
+      }
+
       return {
         gesture: null,
         text: 'Unknown gesture',

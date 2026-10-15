@@ -150,12 +150,25 @@ export default function AIVoiceAssistant() {
             }
         }
 
-        // 1.5 Check for Smart Glasses / Vision commands ("Hello Sparsh", "What do you see", "Describe what is in front of me")
-        const isGlassesVision =
+        // 1.4 Check for Wake Words ("Hello Sparsh", "Hey Sparsh", "Hi Sparsh")
+        const isWakeGreeting =
             text === 'hello sparsh' ||
             text === 'hey sparsh' ||
             text === 'hi sparsh' ||
-            text === 'sparsh' ||
+            text === 'sparsh';
+
+        if (isWakeGreeting) {
+            speak('Hello! I am Sparsh. I am listening to your voice commands.');
+            setActiveToast({
+                message: `Wake word detected: "${rawText}"`,
+                target: 'Listening to your command...',
+                type: 'success'
+            });
+            return true;
+        }
+
+        // 1.5 Check for Smart Glasses / Vision commands ("What do you see", "Describe what is in front of me")
+        const isGlassesVision =
             text.includes('smart glass') ||
             text.includes('smart glasses') ||
             text.includes('what do you see') ||

@@ -141,11 +141,17 @@ export default function SignLabPage() {
 
   const selectSign = useCallback((sign: typeof ISL_SIGNS[0]) => {
     setSelectedSign(sign);
-    setAvatarQueue([sign.word]);
+    setAvatarQueue([]);
+    setTimeout(() => {
+      setAvatarQueue([sign.word]);
+    }, 40);
   }, []);
 
   const replaySign = useCallback(() => {
-    setAvatarQueue([selectedSign.word]);
+    setAvatarQueue([]);
+    setTimeout(() => {
+      setAvatarQueue([selectedSign.word]);
+    }, 40);
   }, [selectedSign]);
 
   const handleSignComplete = useCallback(() => {

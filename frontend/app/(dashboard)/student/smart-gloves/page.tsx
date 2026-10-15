@@ -91,8 +91,8 @@ export default function SmartGlovesDashboard() {
   // ── Gesture Recognition State ──
   const [currentRecognition, setCurrentRecognition] = useState<RecognitionResult | null>(null);
   const [confirmedGesture, setConfirmedGesture] = useState<RecognitionResult | null>(null);
-  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.65);
-  const [holdDurationMs, setHoldDurationMs] = useState<number>(320);
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.55);
+  const [holdDurationMs, setHoldDurationMs] = useState<number>(100);
   const [gestureHistory, setGestureHistory] = useState<
     Array<{ text: string; confidence: number; time: string; icon?: string }>
   >([]);
@@ -588,15 +588,16 @@ export default function SmartGlovesDashboard() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-white/50 font-semibold mr-1">Quick Poses:</span>
+            <span className="text-xs text-white/50 font-semibold mr-1">Quick Poses (6 Signs):</span>
             {[
               { id: 'open', label: 'Open Hand (Hello)', icon: '👋' },
-              { id: 'fist', label: 'Fist (Yes)', icon: '✊' },
-              { id: 'peace', label: 'Peace / V', icon: '✌️' },
-              { id: 'ok', label: 'OK Sign', icon: '👌' },
-              { id: 'iloveyou', label: 'I Love You', icon: '🤟' },
+              { id: 'thumbsup', label: 'Thumbs Up (Help)', icon: '👍' },
               { id: 'point', label: 'Point / Look', icon: '👉' },
+              { id: 'peace', label: 'Peace / V', icon: '✌️' },
               { id: 'water', label: 'Water (W)', icon: '💧' },
+              { id: 'iloveyou', label: 'I Love You', icon: '🤟' },
+              { id: 'fist', label: 'Fist (Yes)', icon: '✊' },
+              { id: 'ok', label: 'OK Sign', icon: '👌' },
             ].map((p) => (
               <button
                 key={p.id}
@@ -607,6 +608,15 @@ export default function SmartGlovesDashboard() {
                 <span>{p.label}</span>
               </button>
             ))}
+
+            <button
+              onClick={() => smartGloves.startDemoCycle(2500)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md transition active:scale-95 flex items-center gap-1.5"
+              title="Automatically cycles through the 6 major signs every 2.5 seconds"
+            >
+              <span>✨</span>
+              <span>Auto-Play 6 Signs Demo</span>
+            </button>
           </div>
 
           {/* Individual Finger Sliders */}

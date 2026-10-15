@@ -369,6 +369,25 @@ export class CommandRegistry {
       },
     });
 
+    // Assistant Greeting & Wake Up Command
+    this.registerGlobalCommand({
+      id: 'assistant-wake-greet',
+      phrases: [
+        'hello sparsh',
+        'hey sparsh',
+        'hi sparsh',
+        'sparsh',
+        'ok sparsh',
+        'wake up sparsh',
+        'hello',
+      ],
+      description: 'Wakes up SPARSH assistant with friendly readiness confirmation',
+      scope: 'global',
+      handler: async (ctx) => {
+        ctx.speak('Hello! I am Sparsh, your inclusive AI companion. I am listening.');
+      },
+    });
+
     // Smart Glasses Camera: Describe Scene / Voice-Triggered Snapshot
     this.registerGlobalCommand({
       id: 'glasses-describe',
@@ -406,13 +425,9 @@ export class CommandRegistry {
         'see for me',
         'tell me what is in front of me',
         'what am i looking at',
-        'hello sparsh',
-        'hey sparsh',
-        'hi sparsh',
-        'sparsh',
-        'ok sparsh',
+        'smart glasses vision',
         'smart glasses',
-        'glasses',
+        'glasses camera',
       ],
       description: 'Takes a camera snapshot from glasses and analyzes what is in front of the student',
       scope: 'global',

@@ -196,6 +196,7 @@ function Avatar({
     cooldown: 0,
   });
   const [isPlaying, setIsPlaying] = useState(false);
+  const lastPlayedTokenRef = useRef<string | null>(null);
 
   const playToken = useCallback((token: string) => {
     const { sign } = resolveToken(token);
@@ -203,6 +204,7 @@ function Avatar({
       setTimeout(() => onSignComplete(token), 150);
       return;
     }
+    lastPlayedTokenRef.current = token;
     const state = animState.current;
     state.sign = sign;
     state.kf = 0;
@@ -213,8 +215,16 @@ function Avatar({
   }, [onSignComplete]);
 
   useEffect(() => {
+    if (queue.length === 0) {
+      lastPlayedTokenRef.current = null;
+      return;
+    }
     if (!isPlaying && queue.length > 0) {
-      playToken(queue[0]);
+      const nextToken = queue[0];
+      // Play only once: avoid replaying the same token if queue has not been cleared yet by parent
+      if (nextToken !== lastPlayedTokenRef.current) {
+        playToken(nextToken);
+      }
     }
   }, [queue, isPlaying, playToken]);
 
