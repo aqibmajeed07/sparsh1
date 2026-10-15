@@ -276,8 +276,8 @@ async def fetch_frame() -> bytes:
 
 
 @router.get("/status")
-async def glasses_status(user=Depends(get_current_user)):
-    """Lets the assistant say 'glasses connected / not connected'."""
+async def glasses_status(authorization: Optional[str] = Header(None)):
+    """Lets the assistant and diagnostic tools check if glasses are connected."""
     if GLASSES_URL:
         try:
             fast_timeout = httpx.Timeout(connect=3.0, read=4.0, write=2.0, pool=2.0)
