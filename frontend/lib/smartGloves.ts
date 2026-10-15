@@ -91,6 +91,17 @@ class SmartGlovesManager {
   private telemetryListeners: Set<(t: GloveTelemetry) => void> = new Set();
   private statusListeners: Set<(s: GloveStatus, t: GloveTransport) => void> = new Set();
   private logListeners: Set<(msg: string) => void> = new Set();
+  private scanListeners: Set<(mv: Record<number, number>) => void> = new Set();
+
+  // Hardware pin definitions matching firmware v2 (ESP32 DevKit V1)
+  public static readonly PINS = {
+    thumb: 36,   // ADC1_CH0
+    index: 39,   // ADC1_CH3
+    middle: 34,  // ADC1_CH6
+    ring: 35,    // ADC1_CH7
+    little: 32,  // ADC1_CH4
+  };
+  public static readonly SCAN_PINS = [32, 33, 34, 35, 36, 39];
 
   constructor() {
     this.loadCalibration();
@@ -118,6 +129,11 @@ class SmartGlovesManager {
   public onLog(cb: (msg: string) => void) {
     this.logListeners.add(cb);
     return () => this.logListeners.delete(cb);
+  }
+
+  public onScan(cb: (mv: Record<number, number>) => void) {
+    this.scanListeners.add(cb);
+    return () => this.scanListeners.delete(cb);
   }
 
   private setStatus(status: GloveStatus, transport: GloveTransport) {
@@ -449,11 +465,35 @@ class SmartGlovesManager {
 
     // Via Simulator
     if (this.transport === 'simulator') {
-      this.log(`🧪 Simulator acknowledged: ${cmd}`);
+      const upper = cmd.trim().toUpperCase();
+      if (upper === 'PING') {
+        this.log('ℹ️ [Firmware] PONG');
+      } else if (upper === 'STATUS') {
+        this.log(`ℹ️ [Firmware] seq=128 ble=simulated rate=25Hz`);
+      } else if (upper === 'SCAN') {
+        this.log('ℹ️ [Firmware] SCAN on: bend one finger at a time');
+        const mockMv = { 32: 120, 33: 135, 34: 150, 35: 110, 36: 140, 39: 130 };
+        this.scanListeners.forEach(cb => cb(mockMv));
+      } else {
+        this.log(`🧪 Simulator acknowledged: ${cmd}`);
+      }
       return true;
     }
 
     return false;
+  }
+
+  // ─── High-Level Hardware Firmware v2 Commands ──────────────────────────────
+  public async ping(): Promise<boolean> {
+    return this.sendCommand('PING');
+  }
+
+  public async requestStatus(): Promise<boolean> {
+    return this.sendCommand('STATUS');
+  }
+
+  public async toggleScan(): Promise<boolean> {
+    return this.sendCommand('SCAN');
   }
 
   // ─── Calibration Management ────────────────────────────────────────────────
@@ -523,26 +563,40 @@ class SmartGlovesManager {
 
   // ─── Telemetry Parsing & Distribution ──────────────────────────────────────
   private parseJsonTelemetry(jsonString: string, transport: GloveTransport) {
-    if (!jsonString.startsWith('{') || !jsonString.endsWith('}')) return;
+    const trimmed = jsonString.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return;
     try {
-      const data = JSON.parse(jsonString);
+      const data = JSON.parse(trimmed);
       if (data.type === 'sensor_data' || (data.thumb !== undefined && data.index !== undefined)) {
         this.handleTelemetryObject(data, transport);
       } else if (data.type === 'info') {
-        this.log(`ℹ️ [Firmware] ${data.msg}`);
+        const msg = String(data.msg || '');
+        this.log(`ℹ️ [Firmware] ${msg}`);
+        // Handle SCAN response format: "mV 32:150 33:200 34:180 35:90 36:80 39:75"
+        if (msg.startsWith('mV')) {
+          const parts = msg.trim().split(/\s+/).slice(1);
+          const mvMap: Record<number, number> = {};
+          for (const p of parts) {
+            const [pinStr, valStr] = p.split(':');
+            if (pinStr && valStr) {
+              mvMap[parseInt(pinStr, 10)] = parseInt(valStr, 10);
+            }
+          }
+          this.scanListeners.forEach(cb => cb(mvMap));
+        }
       }
     } catch (_) {}
   }
 
   private handleTelemetryObject(data: any, transport: GloveTransport) {
     const raw: [number, number, number, number, number] = [
-      Number(data.thumb || 0),
-      Number(data.index || 0),
-      Number(data.middle || 0),
-      Number(data.ring || 0),
-      Number(data.little || 0),
+      Number(data.thumb ?? 0),
+      Number(data.index ?? 0),
+      Number(data.middle ?? 0),
+      Number(data.ring ?? 0),
+      Number(data.little ?? data.pinky ?? 0),
     ];
-    const seq = Number(data.seq || 0);
+    const seq = Number(data.seq ?? 0);
     this.processRawReadings(raw, seq, transport);
   }
 

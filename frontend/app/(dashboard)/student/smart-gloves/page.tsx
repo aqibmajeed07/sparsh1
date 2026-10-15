@@ -122,6 +122,10 @@ export default function SmartGlovesDashboard() {
   const [calInverted, setCalInverted] = useState<boolean[]>([false, false, false, false, false]);
   const [calSaveSuccess, setCalSaveSuccess] = useState<boolean>(false);
 
+  // ── Firmware v2 Diagnostics State (PING, STATUS, SCAN) ──
+  const [scanMv, setScanMv] = useState<Record<number, number> | null>(null);
+  const [scanActive, setScanActive] = useState<boolean>(false);
+
   // ── Dataset & Training Studio State ──
   const [sampleLabel, setSampleLabel] = useState<string>('HELLO');
   const [samplesList, setSamplesList] = useState<GestureSampleData[]>([]);
@@ -199,6 +203,11 @@ export default function SmartGlovesDashboard() {
       setCurrentRecognition(result);
     });
 
+    const unsubScan = smartGloves.onScan((mv) => {
+      setScanMv(mv);
+      setScanActive(true);
+    });
+
     // Load initial samples
     setSamplesList(gestureEngine.getSamples());
 
@@ -206,6 +215,7 @@ export default function SmartGlovesDashboard() {
       unsubStatus();
       unsubLog();
       unsubTelemetry();
+      unsubScan();
     };
   }, [isAutoSpeak]);
 
@@ -537,6 +547,41 @@ export default function SmartGlovesDashboard() {
               <span>Disconnect</span>
             </button>
           )}
+
+          {/* Firmware v2 Diagnostic Commands (PING, STATUS, SCAN) */}
+          {(status === 'connected' || status === 'simulated') && (
+            <div className="flex items-center gap-1.5 bg-white/5 p-1 rounded-xl border border-white/10">
+              <button
+                onClick={() => smartGloves.ping()}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 hover:bg-white/10 text-white transition active:scale-95"
+                title="Send PING command to verify glove responsiveness"
+              >
+                PING
+              </button>
+              <button
+                onClick={() => smartGloves.requestStatus()}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 hover:bg-white/10 text-white transition active:scale-95"
+                title="Request firmware sequence & BLE rate"
+              >
+                STATUS
+              </button>
+              <button
+                onClick={() => {
+                  smartGloves.toggleScan();
+                  setScanActive(!scanActive);
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition active:scale-95 flex items-center gap-1 ${
+                  scanActive
+                    ? 'bg-amber-500 text-black font-bold'
+                    : 'bg-white/5 hover:bg-white/10 text-amber-300'
+                }`}
+                title="Toggle SCAN command to test millivolts on every ADC pin"
+              >
+                <span>SCAN</span>
+                {scanActive && <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Live Metrics Quick Badges */}
@@ -564,6 +609,63 @@ export default function SmartGlovesDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Firmware v2 SCAN Wiring Diagnostic Drawer ── */}
+      {scanActive && scanMv && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-500/30 space-y-3"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚡</span>
+              <h4 className="text-sm font-bold text-amber-300">
+                ESP32 ADC1 Pin Wiring Check (Firmware SCAN Mode)
+              </h4>
+              <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full border border-amber-500/30">
+                LIVE MILLIVOLTS AT 400MS
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                smartGloves.toggleScan();
+                setScanActive(false);
+              }}
+              className="text-xs text-amber-400 hover:text-amber-300 underline font-semibold"
+            >
+              Exit SCAN Mode
+            </button>
+          </div>
+          <p className="text-xs text-white/70">
+            Bend each finger one by one. The pin voltage will change so you can verify each finger is wired to its expected ADC1 pin:
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+            {[
+              { pin: 36, finger: 'Thumb', role: 'FLEX_PINS[0]' },
+              { pin: 39, finger: 'Index', role: 'FLEX_PINS[1]' },
+              { pin: 34, finger: 'Middle', role: 'FLEX_PINS[2]' },
+              { pin: 35, finger: 'Ring', role: 'FLEX_PINS[3]' },
+              { pin: 32, finger: 'Little', role: 'FLEX_PINS[4]' },
+              { pin: 33, finger: 'Spare', role: 'SCAN_PINS[1]' },
+            ].map((p) => {
+              const mv = scanMv[p.pin] ?? 0;
+              return (
+                <div
+                  key={p.pin}
+                  className="p-2.5 rounded-xl bg-black/40 border border-white/10 flex flex-col items-center text-center"
+                >
+                  <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">
+                    {p.finger} (GPIO {p.pin})
+                  </span>
+                  <span className="text-lg font-black text-amber-300 my-0.5">{mv} mV</span>
+                  <span className="text-[10px] text-white/40">{p.role}</span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* ── Simulator Preset Drawer (Only shown when Simulator is active) ── */}
       {status === 'simulated' && (
