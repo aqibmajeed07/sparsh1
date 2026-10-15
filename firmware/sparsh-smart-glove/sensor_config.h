@@ -66,8 +66,8 @@ const char* const FINGER_NAMES[NUM_FINGERS] = {
 // alpha = 0.35 gives responsive tracking with stable noise rejection
 #define EMA_ALPHA 0.35f
 
-// Minimum valid ADC reading (open circuit detection)
-#define ADC_MIN_VALID 100
+// Minimum valid ADC reading (open circuit detection, lowered to 10 for low-range sensors)
+#define ADC_MIN_VALID 10
 // Maximum valid ADC reading (short circuit detection)
 #define ADC_MAX_VALID 4050
 

@@ -68,14 +68,14 @@ class SmartGlovesManager {
   // WebSocket Objects
   private ws: WebSocket | null = null;
 
-  // Simulator State
+  // Simulator State (calibrated for low-range sensors: <100 to 200)
   private simulatorTimer: any = null;
-  private simRaw: [number, number, number, number, number] = [1050, 980, 1020, 950, 1000];
+  private simRaw: [number, number, number, number, number] = [75, 70, 78, 72, 70];
 
-  // Calibration Profile
+  // Calibration Profile: default baseline <100 (70) to 200 for low-voltage flex sensors
   public calibration: GloveCalibrationConfig = {
-    straight: [1000, 1000, 1000, 1000, 1000],
-    bent:     [2200, 2200, 2200, 2200, 2200],
+    straight: [70, 70, 70, 70, 70],
+    bent:     [200, 200, 200, 200, 200],
     inverted: [false, false, false, false, false],
     calibrated: false,
     updatedAt: new Date().toISOString()
@@ -436,6 +436,17 @@ class SmartGlovesManager {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.straight && parsed.bent) {
+          // Auto-migrate stale high-range calibration (1000/2200) to low-range (<100 to 200)
+          if (parsed.straight[0] >= 500) {
+            this.saveCalibration({
+              straight: [70, 70, 70, 70, 70],
+              bent: [200, 200, 200, 200, 200],
+              inverted: [false, false, false, false, false],
+              calibrated: true,
+              updatedAt: new Date().toISOString()
+            });
+            return;
+          }
           this.calibration = parsed;
         }
       }
@@ -463,8 +474,8 @@ class SmartGlovesManager {
 
   // ─── Normalization Algorithm ───────────────────────────────────────────────
   public normalizeRaw(fingerIdx: number, raw: number): number {
-    const s = this.calibration.straight[fingerIdx] ?? 1000;
-    const b = this.calibration.bent[fingerIdx] ?? 2200;
+    const s = this.calibration.straight[fingerIdx] ?? 70;
+    const b = this.calibration.bent[fingerIdx] ?? 200;
     const inv = this.calibration.inverted[fingerIdx] ?? false;
 
     let norm = 0.0;

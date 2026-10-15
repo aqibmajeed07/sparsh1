@@ -19,16 +19,17 @@
  * ╚══════════════════════════════════════════════════════════════════════╝
  *
  * HARDWARE PIN CONNECTIONS (ESP32 DevKit v1):
- *   • Flex Thumb   ──> GPIO 36 (VP) ──[Flex Sensor]── 3.3V
- *                                   └──[10kΩ Resistor]── GND
- *   • Flex Index   ──> GPIO 39 (VN) ──[Flex Sensor]── 3.3V
- *                                   └──[10kΩ Resistor]── GND
- *   • Flex Middle  ──> GPIO 34      ──[Flex Sensor]── 3.3V
- *                                   └──[10kΩ Resistor]── GND
- *   • Flex Ring    ──> GPIO 35      ──[Flex Sensor]── 3.3V
- *                                   └──[10kΩ Resistor]── GND
- *   • Flex Little  ──> GPIO 32      ──[Flex Sensor]── 3.3V
- *                                   └──[10kΩ Resistor]── GND
+ *   • Flex Thumb   ──> GPIO 34 (ADC1_CH6) ──[Flex Sensor]── 3.3V
+ *                                           └──[10kΩ Resistor]── GND
+ *   • Flex Index   ──> GPIO 35 (ADC1_CH7) ──[Flex Sensor]── 3.3V
+ *                                           └──[10kΩ Resistor]── GND
+ *   • Flex Middle  ──> GPIO 32 (ADC1_CH4) ──[Flex Sensor]── 3.3V
+ *                                           └──[10kΩ Resistor]── GND
+ *   • Flex Ring    ──> GPIO 33 (ADC1_CH5) ──[Flex Sensor]── 3.3V
+ *                                           └──[10kΩ Resistor]── GND
+ *   • Flex Little  ──> GPIO 36 (ADC1_CH0) ──[Flex Sensor]── 3.3V
+ *                                           └──[10kΩ Resistor]── GND
+ *   (Note: Alternate wiring option: 36, 39, 34, 35, 32 can be toggled below)
  *
  *   • MPU-6050 IMU:
  *       VCC  ──> 3.3V
@@ -59,11 +60,19 @@
 // 1. PIN DEFINITIONS
 // ==============================================================================
 // Flex Sensors on ADC1 (safe with simultaneous BLE/Wi-Fi)
-#define PIN_FLEX_THUMB      36  // GPIO36 (ADC1_CH0 / SENSOR_VP)
-#define PIN_FLEX_INDEX      39  // GPIO39 (ADC1_CH3 / SENSOR_VN)
-#define PIN_FLEX_MIDDLE     34  // GPIO34 (ADC1_CH6)
-#define PIN_FLEX_RING       35  // GPIO35 (ADC1_CH7)
-#define PIN_FLEX_LITTLE     32  // GPIO32 (ADC1_CH4)
+// Standard layout matching the UI Channel Visualizer: GPIO 34, 35, 32, 33, 36
+#define PIN_FLEX_THUMB      34  // GPIO34 (ADC1_CH6) - Thumb
+#define PIN_FLEX_INDEX      35  // GPIO35 (ADC1_CH7) - Index
+#define PIN_FLEX_MIDDLE     32  // GPIO32 (ADC1_CH4) - Middle
+#define PIN_FLEX_RING       33  // GPIO33 (ADC1_CH5) - Ring
+#define PIN_FLEX_LITTLE     36  // GPIO36 (ADC1_CH0 / SENSOR_VP) - Little / Pinky
+
+// If your board is physically wired to alternate pins, uncomment these lines:
+// #define PIN_FLEX_THUMB   36
+// #define PIN_FLEX_INDEX   39
+// #define PIN_FLEX_MIDDLE  34
+// #define PIN_FLEX_RING    35
+// #define PIN_FLEX_LITTLE  32
 
 // Haptic & Status Indicators
 #define PIN_HAPTIC_MOTOR     4  // GPIO4 — Vibration Motor
@@ -157,12 +166,12 @@ uint32_t packetSequence = 0;
 unsigned long lastTelemetryTime = 0;
 const unsigned long TELEMETRY_INTERVAL_MS = 35; // ~28 Hz output rate for smooth UI
 
-// Flex Sensor EMA Filter Values
-float filteredThumb  = 1000.0;
-float filteredIndex  = 1000.0;
-float filteredMiddle = 1000.0;
-float filteredRing   = 1000.0;
-float filteredLittle = 1000.0;
+// Flex Sensor EMA Filter Values (calibrated for low-voltage sensor range: <100 straight to 200 bent)
+float filteredThumb  = 70.0;
+float filteredIndex  = 70.0;
+float filteredMiddle = 70.0;
+float filteredRing   = 70.0;
+float filteredLittle = 70.0;
 const float EMA_ALPHA = 0.35;
 
 // Haptic Vibration State
@@ -558,6 +567,13 @@ void setup() {
 
   analogReadResolution(12);       // 12-bit ADC (0..4095)
   analogSetAttenuation(ADC_11db); // Full range 0 - 3.3V
+
+  // Warm-up initial flex readings so filter matches actual sensor resting voltage instantly
+  filteredThumb  = analogRead(PIN_FLEX_THUMB);
+  filteredIndex  = analogRead(PIN_FLEX_INDEX);
+  filteredMiddle = analogRead(PIN_FLEX_MIDDLE);
+  filteredRing   = analogRead(PIN_FLEX_RING);
+  filteredLittle = analogRead(PIN_FLEX_LITTLE);
 
   // Initialize MPU-6050 IMU
   mpuReady = initMPU6050();

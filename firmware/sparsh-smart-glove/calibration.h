@@ -12,8 +12,8 @@
 #include <Preferences.h>
 #include "sensor_config.h"
 
-// Minimum ADC delta between straight and bent for valid calibration
-#define MIN_CALIBRATION_DELTA 150
+// Minimum ADC delta between straight and bent for valid calibration (lowered for 100-200 sensors)
+#define MIN_CALIBRATION_DELTA 25
 
 struct FingerCalibration {
   uint16_t straightVal; // ADC reading when finger is flat / extended
@@ -29,10 +29,10 @@ private:
 
 public:
   GloveCalibration() : isCalibrated(false) {
-    // Default sensible baselines (for uncalibrated prototype)
+    // Default sensible baselines for low-range sensors (<100 to 200)
     for (int i = 0; i < NUM_FINGERS; i++) {
-      cal[i].straightVal = 1000;
-      cal[i].bentVal     = 2200;
+      cal[i].straightVal = 70;
+      cal[i].bentVal     = 200;
       cal[i].inverted    = false;
     }
   }
@@ -46,8 +46,13 @@ public:
         char keyS[16], keyB[16];
         snprintf(keyS, sizeof(keyS), "s_%d", i);
         snprintf(keyB, sizeof(keyB), "b_%d", i);
-        cal[i].straightVal = prefs.getUShort(keyS, 1000);
-        cal[i].bentVal     = prefs.getUShort(keyB, 2200);
+        cal[i].straightVal = prefs.getUShort(keyS, 70);
+        cal[i].bentVal     = prefs.getUShort(keyB, 200);
+        // If stored calibration is still using old 1000/2200 defaults, migrate to 70/200:
+        if (cal[i].straightVal >= 500) {
+          cal[i].straightVal = 70;
+          cal[i].bentVal     = 200;
+        }
         cal[i].inverted    = (cal[i].bentVal < cal[i].straightVal);
       }
     }
@@ -96,8 +101,8 @@ public:
     prefs.clear();
     isCalibrated = false;
     for (int i = 0; i < NUM_FINGERS; i++) {
-      cal[i].straightVal = 1000;
-      cal[i].bentVal     = 2200;
+      cal[i].straightVal = 70;
+      cal[i].bentVal     = 200;
       cal[i].inverted    = false;
     }
   }

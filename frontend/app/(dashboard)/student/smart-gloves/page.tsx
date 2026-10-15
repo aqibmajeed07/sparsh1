@@ -117,8 +117,8 @@ export default function SmartGlovesDashboard() {
 
   // ── Guided Calibration State ──
   const [calStep, setCalStep] = useState<number>(1);
-  const [calStraightReadings, setCalStraightReadings] = useState<number[]>([1000, 1000, 1000, 1000, 1000]);
-  const [calBentReadings, setCalBentReadings] = useState<number[]>([2200, 2200, 2200, 2200, 2200]);
+  const [calStraightReadings, setCalStraightReadings] = useState<number[]>([70, 70, 70, 70, 70]);
+  const [calBentReadings, setCalBentReadings] = useState<number[]>([200, 200, 200, 200, 200]);
   const [calInverted, setCalInverted] = useState<boolean[]>([false, false, false, false, false]);
   const [calSaveSuccess, setCalSaveSuccess] = useState<boolean>(false);
 
@@ -1274,7 +1274,7 @@ export default function SmartGlovesDashboard() {
                 Step 1: Sensor Signal Verification
               </h3>
               <p className="text-xs text-white/60">
-                Ensure all 5 flex sensor channels are actively producing analog ADC values (typically between 500 and 3500 counts).
+                Ensure all 5 flex sensor channels are actively producing analog ADC values (typically below 100 straight, up to 200 when bent).
               </p>
 
               <div className="grid grid-cols-5 gap-3 pt-2">
@@ -1282,7 +1282,7 @@ export default function SmartGlovesDashboard() {
                   const raw = telemetry
                     ? telemetry.fingers[name.toLowerCase() as keyof NonNullable<typeof telemetry>['fingers']].raw
                     : 0;
-                  const isValid = raw > 100 && raw < 4000;
+                  const isValid = raw > 10 && raw < 4000;
                   return (
                     <div key={name} className="p-3 bg-black/40 rounded-xl border border-white/5 text-center space-y-1">
                       <span className="text-xs font-semibold text-white/70 block">{name}</span>
@@ -1295,7 +1295,26 @@ export default function SmartGlovesDashboard() {
                 })}
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-between items-center pt-4">
+                <button
+                  onClick={() => {
+                    const lowCal = {
+                      straight: [70, 70, 70, 70, 70] as [number, number, number, number, number],
+                      bent: [200, 200, 200, 200, 200] as [number, number, number, number, number],
+                      inverted: [false, false, false, false, false] as [boolean, boolean, boolean, boolean, boolean],
+                      calibrated: true,
+                      updatedAt: new Date().toISOString()
+                    };
+                    smartGloves.saveCalibration(lowCal);
+                    setCalStraightReadings([70, 70, 70, 70, 70]);
+                    setCalBentReadings([200, 200, 200, 200, 200]);
+                    setCalSaveSuccess(true);
+                    setCalStep(6);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-2"
+                >
+                  <Sliders className="w-4 h-4" /> Quick Set: Low-Range (&lt;100 to 200)
+                </button>
                 <button
                   onClick={() => setCalStep(2)}
                   className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white font-bold text-xs md:text-sm shadow-md"
@@ -1379,7 +1398,7 @@ export default function SmartGlovesDashboard() {
                   const b = calBentReadings[i];
                   const delta = Math.abs(b - s);
                   const isInv = calInverted[i];
-                  const isHealthy = delta >= 150;
+                  const isHealthy = delta >= 25;
 
                   return (
                     <div
@@ -1406,7 +1425,7 @@ export default function SmartGlovesDashboard() {
                               : 'bg-rose-500/20 text-rose-300'
                           }`}
                         >
-                          {isHealthy ? 'Valid Delta' : 'Delta Low (<150)'}
+                          {isHealthy ? 'Valid Delta' : 'Delta Low (<25)'}
                         </span>
                       </div>
                     </div>
