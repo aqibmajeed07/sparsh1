@@ -13,6 +13,7 @@ import { convertTextToSigns } from '@/lib/isl/textToSigns';
 import { supabase } from '@/lib/supabase';
 import { senseBand } from '@/lib/senseband';
 import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
+import { getBackendCandidateUrls, CURRENT_ACTIVE_TUNNEL } from '@/lib/backendUrl';
 
 const LANGUAGES = [
   { code: 'en-US', name: 'English', greeting: { text: 'Hello! I am your AI Tutor. I can understand, write, sign, and take voice commands to control the app.', isl: 'hello me your ai tutor me understand write sign real time' } },
@@ -469,18 +470,19 @@ export default function AccessibilityAITutorPage() {
     try {
       let data: any = null;
       const tunnelUrl = typeof window !== 'undefined' ? localStorage.getItem('sparsh_tunnel_url') : null;
-      const directCandidates = [
-        tunnelUrl,
-        process.env.NEXT_PUBLIC_BACKEND_URL,
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-      ].filter(Boolean) as string[];
+      const directCandidates = getBackendCandidateUrls(tunnelUrl);
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-      // 1. Direct connection attempt to local backend for fast AI execution
+      // 1. Direct connection attempt to local backend/tunnel for fast AI execution
       for (const candidate of directCandidates) {
+        // Prevent browser mixed-content blockage on HTTPS production app
+        if (isHttps && (candidate.startsWith('http://localhost') || candidate.startsWith('http://127.0.0.1'))) {
+          continue;
+        }
+
         try {
           const directController = new AbortController();
-          const directTimeout = setTimeout(() => directController.abort(), 14000);
+          const directTimeout = setTimeout(() => directController.abort(), 30000);
           const directRes = await fetch(`${candidate}/api/ai-tutor/chat`, {
             method: 'POST',
             headers: {
@@ -509,11 +511,12 @@ export default function AccessibilityAITutorPage() {
 
       // 2. Next.js API Proxy Fallback
       if (!data) {
+        const effectiveTunnel = tunnelUrl || CURRENT_ACTIVE_TUNNEL;
         const res = await fetch('/api/ai-tutor/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(tunnelUrl ? { 'x-tunnel-url': tunnelUrl } : {})
+            ...(effectiveTunnel ? { 'x-tunnel-url': effectiveTunnel } : {})
           },
           body: JSON.stringify({
             message: text,
@@ -521,7 +524,7 @@ export default function AccessibilityAITutorPage() {
             detailed: isDetailedMode,
             session_id: currentSessionId,
             user_id: user?.id,
-            tunnel_url: tunnelUrl
+            tunnel_url: effectiveTunnel
           })
         });
         data = await res.json();

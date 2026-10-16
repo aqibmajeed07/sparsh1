@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   for (const baseUrl of candidateUrls) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 28000); // 28s for local Ollama generation
+      const timeout = setTimeout(() => controller.abort(), 35000); // 35s for local Ollama generation
 
       const res = await fetch(`${baseUrl}/api/ai-tutor/chat`, {
         method: 'POST',
@@ -52,4 +52,3 @@ export async function POST(req: Request) {
     session_title: sessionTitle
   });
 }
-

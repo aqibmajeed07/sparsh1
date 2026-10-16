@@ -24,6 +24,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ESPmDNS.h>
 
 // Brownout protection registers (prevents unexpected reboot during camera/WiFi power draw)
@@ -39,8 +40,11 @@
 // Shared authentication token matching GLASSES_DEVICE_TOKEN in backend/.env
 #define DEVICE_TOKEN       "sparsh_glasses_aqib_mir_2026"
 
-// Laptop/Server URL where a button press pushes frames
-#define BACKEND_FRAME_URL  "http://10.157.174.216:8000/api/glasses/frame"
+// Laptop LAN IP (Active on Wi-Fi "Aqib" -> 10.31.8.204)
+#define BACKEND_FRAME_URL         "http://10.31.8.204:8000/api/glasses/frame"
+
+// Cloudflare Tunnel URL (Connects directly to production app over internet)
+#define BACKEND_TUNNEL_FRAME_URL  "https://club-recreational-worker-watches.trycloudflare.com/api/glasses/frame"
 
 #define HOSTNAME           "sparsh-glasses"
 
@@ -339,7 +343,7 @@ void pushFrameToBackend(const char *trigger) {
   }
 
   HTTPClient http;
-  http.setTimeout(12000);
+  http.setTimeout(8000);
   http.begin(BACKEND_FRAME_URL);
   http.addHeader("Content-Type", "image/jpeg");
   http.addHeader("X-Device-Token", DEVICE_TOKEN);
@@ -348,9 +352,28 @@ void pushFrameToBackend(const char *trigger) {
   int code = http.POST(fb->buf, fb->len);
   http.end();
 
+  // If local LAN backend is unreachable, automatically fall back to Cloudflare Tunnel!
+  if (code != 200) {
+    Serial.printf("[btn] LAN POST failed (%d). Retrying via Cloudflare Tunnel...\n", code);
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure(); // Skip certificate verification on embedded ESP32
+
+    HTTPClient https;
+    https.setTimeout(12000);
+    https.begin(secureClient, BACKEND_TUNNEL_FRAME_URL);
+    https.addHeader("Content-Type", "image/jpeg");
+    https.addHeader("X-Device-Token", DEVICE_TOKEN);
+    https.addHeader("X-Trigger", trigger);
+
+    code = https.POST(fb->buf, fb->len);
+    https.end();
+    Serial.printf("[btn] Tunnel POST frame -> HTTP %d\n", code);
+  } else {
+    Serial.printf("[btn] LAN POST frame -> HTTP %d (Success)\n", code);
+  }
+
   esp_camera_fb_return(fb);
   setLed(false);
-  Serial.printf("[btn] POST frame -> HTTP %d\n", code);
 }
 
 void handleButton() {

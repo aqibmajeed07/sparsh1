@@ -118,13 +118,14 @@ async def run_vision(jpeg: bytes, prompt: str) -> str:
 
     # 1. Try Local Ollama instance if a multimodal vision model is available
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             ollama_tags = await client.get("http://localhost:11434/api/tags")
             if ollama_tags.status_code == 200:
                 tags_data = ollama_tags.json()
                 models = [m.get("name", "") for m in tags_data.get("models", [])]
                 vision_candidate = next((m for m in models if any(k in m.lower() for k in ["vision", "llava", "moondream", "minicpm"])), None)
                 if vision_candidate:
+                    print(f"[Glasses Vision] Running Local Ollama Vision with {vision_candidate}...")
                     gen_resp = await client.post("http://localhost:11434/api/generate", json={
                         "model": vision_candidate,
                         "prompt": prompt,
@@ -133,6 +134,7 @@ async def run_vision(jpeg: bytes, prompt: str) -> str:
                     })
                     if gen_resp.status_code == 200:
                         raw_vlm_text = gen_resp.json().get("response", "").strip()
+                        print(f"[Glasses Vision] Local Ollama VLM success ({len(raw_vlm_text)} chars)")
     except Exception as e:
         print(f"[Glasses Vision] Local Ollama VLM attempt: {e}")
 

@@ -10,6 +10,7 @@ const AccessibilityToolbar = dynamic(() => import('@/components/AccessibilityToo
 import { VoiceAssistantProvider, useVoiceAssistant } from '@/components/voicevision/VoiceAssistantProvider';
 const VoiceAssistantControl = dynamic(() => import('@/components/voicevision/VoiceAssistantControl').then(m => m.VoiceAssistantControl), { ssr: false });
 const LiveClassNotification = dynamic(() => import('@/components/live/LiveClassNotification'), { ssr: false });
+import { CloudflareTunnelBadge } from '@/components/CloudflareTunnelModal';
 
 // ── Top Header Voice Navigation Bar Control ───────────────────────────────────
 function HeaderVoiceNav() {
@@ -241,6 +242,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                <CloudflareTunnelBadge />
                 <HeaderVoiceNav />
                 <button
                   onClick={handleSignOut}

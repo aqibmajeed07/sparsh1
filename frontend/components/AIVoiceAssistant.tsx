@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Volume2, Sparkles, Navigation, CheckCircle2, AlertTriangle, Loader2, Bot, X } from 'lucide-react';
 import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
+import { getBackendCandidateUrls, getPrimaryBackendUrl } from '@/lib/backendUrl';
 
 const VOICE_ROUTES: { keywords: string[]; path: string; label: string }[] = [
     { keywords: ['dashboard', 'home', 'main', 'student dashboard', 'go home'], path: '/student', label: 'Dashboard' },
@@ -43,9 +44,7 @@ export default function AIVoiceAssistant() {
     const isSpeakingRef = useRef<boolean>(false);
     const consecutiveErrorsRef = useRef<number>(0);
     const router = useRouter();
-
-    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sparsh-538t.onrender.com';
-
+    const BACKEND_URL = getPrimaryBackendUrl();
     const restartTimerRef = useRef<any>(null);
 
     // Speak helper using Gemini Lady Voice Synthesizer
@@ -233,13 +232,27 @@ export default function AIVoiceAssistant() {
         });
 
         try {
-            const res = await fetch(`${BACKEND_URL}/api/ai-tutor/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: rawText, language: 'en-US', detailed: false })
-            });
+            let res: Response | null = null;
+            try {
+                res = await fetch(`${BACKEND_URL}/api/ai-tutor/chat`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'bypass-tunnel-reminder': 'true',
+                        'User-Agent': 'SparshClient'
+                    },
+                    body: JSON.stringify({ message: rawText, language: 'en-US', detailed: false })
+                });
+            } catch (_) {
+                // Fallback via Next.js proxy
+                res = await fetch('/api/ai-tutor/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: rawText, language: 'en-US', detailed: false })
+                });
+            }
 
-            if (res.ok) {
+            if (res && res.ok) {
                 const data = await res.json();
                 const reply = data.reply || "I am here to help you learn on Sparsh.";
                 setAiResponse(reply);

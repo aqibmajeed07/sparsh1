@@ -68,6 +68,29 @@ export function VoiceAssistantControl() {
   const [batteryLevel, setBatteryLevel] = useState<number>(98);
   const [isGlassesConnected, setIsGlassesConnected] = useState<boolean>(false);
   const [copiedTranscription, setCopiedTranscription] = useState<boolean>(false);
+  const lastButtonIdRef = useRef<number>(0);
+
+  // Poll for physical button presses on hardware glasses (every 1.5s)
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetchGlassesApi(`button-result?since=${lastButtonIdRef.current}`);
+        if (res.ok) {
+          const d = await res.json();
+          if (d && d.id && d.id > lastButtonIdRef.current && d.text) {
+            lastButtonIdRef.current = d.id;
+            setIsOpen(true);
+            setActiveTab('glasses');
+            setVisionTranscription(d.text);
+            setLiveGlassesFrameUrl(getGlassesCaptureUrl());
+            speak(d.text);
+          }
+        }
+      } catch (_) {}
+    }, 1500);
+
+    return () => clearInterval(pollInterval);
+  }, [speak]);
 
   // Listen for voice-triggered smart glasses snapshot events ("take image", "analyse in front of me")
   useEffect(() => {

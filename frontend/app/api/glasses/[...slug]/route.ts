@@ -8,13 +8,16 @@ export async function GET(req: NextRequest, { params }: { params: { slug: string
   const search = req.nextUrl.search;
   const authHeader = req.headers.get('authorization') || 'Bearer student-web-session';
   const deviceToken = req.headers.get('x-device-token') || '';
+  const customTunnel = req.headers.get('x-tunnel-url') || req.nextUrl.searchParams.get('tunnel_url') || null;
 
   const headers: Record<string, string> = {
     'Authorization': authHeader,
+    'bypass-tunnel-reminder': 'true',
+    'User-Agent': 'SparshClient',
   };
   if (deviceToken) headers['X-Device-Token'] = deviceToken;
 
-  for (const baseUrl of getBackendCandidateUrls()) {
+  for (const baseUrl of getBackendCandidateUrls(customTunnel)) {
     try {
       const targetUrl = `${baseUrl}/api/glasses/${path}${search}`;
       const controller = new AbortController();
@@ -70,6 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const authHeader = req.headers.get('authorization') || 'Bearer student-web-session';
   const deviceToken = req.headers.get('x-device-token') || '';
   const trigger = req.headers.get('x-trigger') || '';
+  const customTunnel = req.headers.get('x-tunnel-url') || req.nextUrl.searchParams.get('tunnel_url') || null;
 
   // Read raw buffer so both JSON requests and binary JPEG uploads from ESP32 work seamlessly
   const rawBody = await req.arrayBuffer();
@@ -77,15 +81,17 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
   const headers: Record<string, string> = {
     'Content-Type': contentType,
     'Authorization': authHeader,
+    'bypass-tunnel-reminder': 'true',
+    'User-Agent': 'SparshClient',
   };
   if (deviceToken) headers['X-Device-Token'] = deviceToken;
   if (trigger) headers['X-Trigger'] = trigger;
 
-  for (const baseUrl of getBackendCandidateUrls()) {
+  for (const baseUrl of getBackendCandidateUrls(customTunnel)) {
     try {
       const targetUrl = `${baseUrl}/api/glasses/${path}`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 28000); // 28s for VLM + Ollama generation
+      const timeout = setTimeout(() => controller.abort(), 35000); // 35s for VLM + Ollama generation
 
       const res = await fetch(targetUrl, {
         method: 'POST',
@@ -115,4 +121,3 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     { status: 200 }
   );
 }
-
