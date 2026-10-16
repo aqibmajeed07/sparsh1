@@ -580,6 +580,15 @@ export default function SmartGlovesDashboard() {
                 <span>SCAN</span>
                 {scanActive && <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />}
               </button>
+              <button
+                onClick={() => {
+                  smartGloves.resetAutoCalibration();
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition active:scale-95 flex items-center gap-1"
+                title="Reset auto-calibration min/max to adapt dynamically to your physical glove voltage range"
+              >
+                <span>⚡ Auto-Calibrate</span>
+              </button>
             </div>
           )}
         </div>
@@ -841,11 +850,14 @@ export default function SmartGlovesDashboard() {
                           </div>
                         </div>
 
-                        {/* Raw ADC Counts */}
+                        {/* Raw ADC Counts & Live Millivolts */}
                         <div className="text-center font-mono">
                           <span className="text-[10px] text-white/40 block">ADC Raw</span>
                           <span className="text-xs font-bold text-white/90">
                             {telemetry ? raw : '—'}
+                          </span>
+                          <span className="text-[10px] text-[#00C9A7] font-semibold block">
+                            {finger ? `${finger.millivolts} mV` : '—'}
                           </span>
                         </div>
                       </div>
@@ -1386,7 +1398,7 @@ export default function SmartGlovesDashboard() {
                 Step 1: Sensor Signal Verification
               </h3>
               <p className="text-xs text-white/60">
-                Ensure all 5 flex sensor channels are actively producing analog ADC values (typically below 100 straight, up to 200 when bent).
+                Ensure all 5 flex sensor channels are actively producing analog ADC values (0–4095 range, with corresponding 0–3300 mV).
               </p>
 
               <div className="grid grid-cols-5 gap-3 pt-2">
@@ -1410,22 +1422,12 @@ export default function SmartGlovesDashboard() {
               <div className="flex justify-between items-center pt-4">
                 <button
                   onClick={() => {
-                    const lowCal = {
-                      straight: [70, 70, 70, 70, 70] as [number, number, number, number, number],
-                      bent: [200, 200, 200, 200, 200] as [number, number, number, number, number],
-                      inverted: [false, false, false, false, false] as [boolean, boolean, boolean, boolean, boolean],
-                      calibrated: true,
-                      updatedAt: new Date().toISOString()
-                    };
-                    smartGloves.saveCalibration(lowCal);
-                    setCalStraightReadings([70, 70, 70, 70, 70]);
-                    setCalBentReadings([200, 200, 200, 200, 200]);
+                    smartGloves.resetAutoCalibration();
                     setCalSaveSuccess(true);
-                    setCalStep(6);
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-2"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition flex items-center gap-2"
                 >
-                  <Sliders className="w-4 h-4" /> Quick Set: Low-Range (&lt;100 to 200)
+                  <Activity className="w-4 h-4" /> Reset to Adaptive Auto-Calibration
                 </button>
                 <button
                   onClick={() => setCalStep(2)}

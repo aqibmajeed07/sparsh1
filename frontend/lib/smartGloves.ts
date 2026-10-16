@@ -11,6 +11,7 @@ export type GloveStatus = 'disconnected' | 'connecting' | 'connected' | 'simulat
 
 export interface FingerTelemetry {
   raw: number;         // Raw ADC count (0..4095)
+  millivolts: number;  // Measured/calculated voltage in mV (0..3300)
   normalized: number;  // 0.00 (straight) to 1.00 (curled/bent)
   percentage: number;  // 0% to 100%
   straightVal: number; // Calibration baseline
@@ -72,7 +73,7 @@ class SmartGlovesManager {
   private simulatorTimer: any = null;
   private simRaw: [number, number, number, number, number] = [75, 70, 78, 72, 70];
 
-  // Calibration Profile: default baseline <100 (70) to 200 for low-voltage flex sensors
+  // Calibration Profile: default baseline 70 to 200 (auto-adapts to ANY sensor voltage range)
   public calibration: GloveCalibrationConfig = {
     straight: [70, 70, 70, 70, 70],
     bent:     [200, 200, 200, 200, 200],
@@ -80,6 +81,10 @@ class SmartGlovesManager {
     calibrated: false,
     updatedAt: new Date().toISOString()
   };
+
+  // Adaptive runtime auto-range: dynamically learns user's flex range (low or high voltage)
+  public dynamicMin: [number, number, number, number, number] = [4095, 4095, 4095, 4095, 4095];
+  public dynamicMax: [number, number, number, number, number] = [0, 0, 0, 0, 0];
 
   // Telemetry Metrics
   private lastPacketTime = 0;
@@ -496,6 +501,12 @@ class SmartGlovesManager {
     return this.sendCommand('SCAN');
   }
 
+  public resetAutoCalibration() {
+    this.dynamicMin = [4095, 4095, 4095, 4095, 4095];
+    this.dynamicMax = [0, 0, 0, 0, 0];
+    this.log('🔄 Adaptive dynamic calibration range reset. Move fingers to auto-calibrate.');
+  }
+
   // ─── Calibration Management ────────────────────────────────────────────────
   public loadCalibration() {
     if (typeof window === 'undefined') return;
@@ -504,17 +515,6 @@ class SmartGlovesManager {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.straight && parsed.bent) {
-          // Auto-migrate stale high-range calibration (1000/2200) to low-range (<100 to 200)
-          if (parsed.straight[0] >= 500) {
-            this.saveCalibration({
-              straight: [70, 70, 70, 70, 70],
-              bent: [200, 200, 200, 200, 200],
-              inverted: [false, false, false, false, false],
-              calibrated: true,
-              updatedAt: new Date().toISOString()
-            });
-            return;
-          }
           this.calibration = parsed;
         }
       }
@@ -540,11 +540,33 @@ class SmartGlovesManager {
     }).catch(() => {});
   }
 
-  // ─── Normalization Algorithm ───────────────────────────────────────────────
+  // ─── Normalization Algorithm (Adaptive & Range-Independent) ───────────────
   public normalizeRaw(fingerIdx: number, raw: number): number {
-    const s = this.calibration.straight[fingerIdx] ?? 70;
-    const b = this.calibration.bent[fingerIdx] ?? 200;
+    // Dynamic tracking when live hardware is connected
+    if (raw > 5) {
+      if (raw < this.dynamicMin[fingerIdx]) this.dynamicMin[fingerIdx] = raw;
+      if (raw > this.dynamicMax[fingerIdx]) this.dynamicMax[fingerIdx] = raw;
+    }
+
+    let s = this.calibration.straight[fingerIdx];
+    let b = this.calibration.bent[fingerIdx];
     const inv = this.calibration.inverted[fingerIdx] ?? false;
+
+    // If user has not locked a manual calibration, adapt dynamically to live sensor voltages!
+    if (!this.calibration.calibrated) {
+      const span = this.dynamicMax[fingerIdx] - this.dynamicMin[fingerIdx];
+      if (span >= 25) {
+        s = this.dynamicMin[fingerIdx];
+        b = this.dynamicMax[fingerIdx];
+      } else {
+        s = s ?? 70;
+        b = b ?? 200;
+      }
+    }
+
+    if (s === undefined || b === undefined || s === b) {
+      return 0.0;
+    }
 
     let norm = 0.0;
     if (!inv) {
@@ -596,11 +618,21 @@ class SmartGlovesManager {
       Number(data.ring ?? 0),
       Number(data.little ?? data.pinky ?? 0),
     ];
+    const mv: [number, number, number, number, number] | undefined =
+      Array.isArray(data.mv) && data.mv.length === 5
+        ? [Number(data.mv[0]), Number(data.mv[1]), Number(data.mv[2]), Number(data.mv[3]), Number(data.mv[4])]
+        : undefined;
+
     const seq = Number(data.seq ?? 0);
-    this.processRawReadings(raw, seq, transport);
+    this.processRawReadings(raw, seq, transport, mv);
   }
 
-  private processRawReadings(raw: [number, number, number, number, number], seq: number, transport: GloveTransport) {
+  private processRawReadings(
+    raw: [number, number, number, number, number],
+    seq: number,
+    transport: GloveTransport,
+    measuredMv?: [number, number, number, number, number]
+  ) {
     this.sampleCounter++;
     const now = Date.now();
     this.lastPacketTime = now;
@@ -619,6 +651,11 @@ class SmartGlovesManager {
       return 'partial';
     };
 
+    const calcMv = (i: number): number => {
+      if (measuredMv && measuredMv[i] !== undefined) return measuredMv[i];
+      return Math.round((raw[i] / 4095) * 3300);
+    };
+
     const telemetry: GloveTelemetry = {
       seq,
       timestamp: now,
@@ -629,46 +666,51 @@ class SmartGlovesManager {
       fingers: {
         thumb: {
           raw: raw[0],
+          millivolts: calcMv(0),
           normalized: norm[0],
           percentage: Math.round(norm[0] * 100),
-          straightVal: this.calibration.straight[0],
-          bentVal: this.calibration.bent[0],
+          straightVal: this.calibration.calibrated ? this.calibration.straight[0] : this.dynamicMin[0],
+          bentVal: this.calibration.calibrated ? this.calibration.bent[0] : this.dynamicMax[0],
           inverted: this.calibration.inverted[0],
           state: fingerState(norm[0]),
         },
         index: {
           raw: raw[1],
+          millivolts: calcMv(1),
           normalized: norm[1],
           percentage: Math.round(norm[1] * 100),
-          straightVal: this.calibration.straight[1],
-          bentVal: this.calibration.bent[1],
+          straightVal: this.calibration.calibrated ? this.calibration.straight[1] : this.dynamicMin[1],
+          bentVal: this.calibration.calibrated ? this.calibration.bent[1] : this.dynamicMax[1],
           inverted: this.calibration.inverted[1],
           state: fingerState(norm[1]),
         },
         middle: {
           raw: raw[2],
+          millivolts: calcMv(2),
           normalized: norm[2],
           percentage: Math.round(norm[2] * 100),
-          straightVal: this.calibration.straight[2],
-          bentVal: this.calibration.bent[2],
+          straightVal: this.calibration.calibrated ? this.calibration.straight[2] : this.dynamicMin[2],
+          bentVal: this.calibration.calibrated ? this.calibration.bent[2] : this.dynamicMax[2],
           inverted: this.calibration.inverted[2],
           state: fingerState(norm[2]),
         },
         ring: {
           raw: raw[3],
+          millivolts: calcMv(3),
           normalized: norm[3],
           percentage: Math.round(norm[3] * 100),
-          straightVal: this.calibration.straight[3],
-          bentVal: this.calibration.bent[3],
+          straightVal: this.calibration.calibrated ? this.calibration.straight[3] : this.dynamicMin[3],
+          bentVal: this.calibration.calibrated ? this.calibration.bent[3] : this.dynamicMax[3],
           inverted: this.calibration.inverted[3],
           state: fingerState(norm[3]),
         },
         little: {
           raw: raw[4],
+          millivolts: calcMv(4),
           normalized: norm[4],
           percentage: Math.round(norm[4] * 100),
-          straightVal: this.calibration.straight[4],
-          bentVal: this.calibration.bent[4],
+          straightVal: this.calibration.calibrated ? this.calibration.straight[4] : this.dynamicMin[4],
+          bentVal: this.calibration.calibrated ? this.calibration.bent[4] : this.dynamicMax[4],
           inverted: this.calibration.inverted[4],
           state: fingerState(norm[4]),
         },
