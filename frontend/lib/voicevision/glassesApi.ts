@@ -8,11 +8,14 @@ import { getBackendCandidateUrls, getPrimaryBackendUrl } from '@/lib/backendUrl'
 
 export function getGlassesCaptureUrl(): string {
   const t = Date.now();
-  const primary = getPrimaryBackendUrl();
-  if (primary) {
-    return `${primary}/api/glasses/capture?t=${t}`;
+  let activeTunnel: string | null = null;
+  if (typeof window !== 'undefined') {
+    try {
+      activeTunnel = localStorage.getItem('sparsh_tunnel_url');
+    } catch (_) {}
   }
-  return `/api/glasses/capture?t=${t}`;
+  const tunnelParam = activeTunnel ? `&tunnel_url=${encodeURIComponent(activeTunnel)}` : '';
+  return `/api/glasses/capture?t=${t}${tunnelParam}`;
 }
 
 let cachedWorkingCandidate: { url: string; expiresAt: number } | null = null;

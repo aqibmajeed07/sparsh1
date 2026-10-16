@@ -49,7 +49,7 @@ PROMPTS = {
 }
 
 # Last result from a physical button press. Single-user prototype only.
-latest_button_result = {"id": 0, "text": "", "at": 0.0}
+latest_button_result = {"id": 0, "text": "", "at": 0.0, "image_url": ""}
 
 
 # ─── Auth Dependency ─────────────────────────────────────────────────────────
@@ -375,7 +375,13 @@ async def button_frame(request: Request,
     global latest_cached_frame
     latest_cached_frame = jpeg
     text = await run_vision(jpeg, PROMPTS["describe"])
-    latest_button_result.update(id=latest_button_result["id"] + 1, text=text, at=time.time())
+    b64_image = base64.b64encode(jpeg).decode("utf-8")
+    latest_button_result.update(
+        id=latest_button_result["id"] + 1,
+        text=text,
+        at=time.time(),
+        image_url=f"data:image/jpeg;base64,{b64_image}"
+    )
     return {"ok": True}
 
 

@@ -96,7 +96,9 @@ export function VoiceAssistantControl() {
             setIsOpen(true);
             setActiveTab('glasses');
             setVisionTranscription(d.text);
-            setLiveGlassesFrameUrl(getGlassesCaptureUrl());
+            const frameUrl = d.image_url || getGlassesCaptureUrl();
+            setLastCapturedImage(frameUrl);
+            setLiveGlassesFrameUrl(frameUrl);
             speak(d.text);
           }
         }

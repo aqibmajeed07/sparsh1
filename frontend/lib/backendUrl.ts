@@ -11,7 +11,7 @@
  */
 
 // Active Cloudflare Tunnel for this development session
-export const CURRENT_ACTIVE_TUNNEL = 'https://club-recreational-worker-watches.trycloudflare.com';
+export const CURRENT_ACTIVE_TUNNEL = 'https://output-available-cover-trade.trycloudflare.com';
 export const CURRENT_LAN_BACKEND = 'http://10.31.8.204:8000';
 
 export function getBackendCandidateUrls(customTunnelUrl?: string | null): string[] {
@@ -68,7 +68,7 @@ export function getBackendCandidateUrls(customTunnelUrl?: string | null): string
 
   // Deduplicate and filter dead legacy tunnels
   const deduped = Array.from(new Set(urls)).filter(
-    (u) => Boolean(u) && !u.includes('spare-nato-obvious-murphy')
+    (u) => Boolean(u) && !u.includes('spare-nato-obvious-murphy') && !u.includes('club-recreational-worker-watches')
   );
 
   return deduped;
