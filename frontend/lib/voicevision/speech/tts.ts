@@ -2,6 +2,8 @@
 // Implements resilient sentence chunking and cancel-and-remember pause/resume
 // to overcome native SpeechSynthesis limitations on Android Chrome and desktop browsers.
 
+import { getGeminiLadyVoice } from '@/lib/geminiVoice';
+
 export interface TTSOptions {
   rate?: number;
   pitch?: number;
@@ -211,12 +213,8 @@ export class SentenceChunkedTTS {
     utterance.pitch = this.options.pitch ?? 1.0;
     utterance.volume = this.options.volume ?? 1.0;
 
-    // Pick best available Indian English voice if present
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(
-      v => v.lang === (this.options.lang || 'en-IN') || v.lang.includes('en-IN')
-    ) || voices.find(v => v.lang.startsWith('en'));
-
+    // Pick best natural Gemini Lady voice
+    const preferredVoice = getGeminiLadyVoice(this.options.lang || 'en-IN');
     if (preferredVoice) {
       utterance.voice = preferredVoice;
     }

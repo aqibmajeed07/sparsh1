@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Volume2, Sparkles, Navigation, CheckCircle2, AlertTriangle, Loader2, Bot, X } from 'lucide-react';
+import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
 
 const VOICE_ROUTES: { keywords: string[]; path: string; label: string }[] = [
     { keywords: ['dashboard', 'home', 'main', 'student dashboard', 'go home'], path: '/student', label: 'Dashboard' },
@@ -47,15 +48,10 @@ export default function AIVoiceAssistant() {
 
     const restartTimerRef = useRef<any>(null);
 
-    // Speak helper using Web Speech Synthesis with pause guard
+    // Speak helper using Gemini Lady Voice Synthesizer
     const speak = (text: string, onDone?: () => void) => {
-        if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-            if (onDone) onDone();
-            return;
-        }
-
         try {
-            window.speechSynthesis.cancel();
+            stopGeminiLady();
             isSpeakingRef.current = true;
             setIsSpeaking(true);
 
@@ -63,11 +59,6 @@ export default function AIVoiceAssistant() {
             if (recognitionRef.current) {
                 try { recognitionRef.current.stop(); } catch (e) { }
             }
-
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'en-US';
-            u.rate = 1.0;
-            u.pitch = 1.0;
 
             const handleEnd = () => {
                 isSpeakingRef.current = false;
@@ -79,10 +70,13 @@ export default function AIVoiceAssistant() {
                 }
             };
 
-            u.onend = handleEnd;
-            u.onerror = handleEnd;
-
-            window.speechSynthesis.speak(u);
+            speakGeminiLady(text, {
+                lang: 'en-US',
+                pitch: 1.08,
+                rate: 1.02,
+                onEnd: handleEnd,
+                onError: handleEnd
+            });
         } catch (err) {
             console.error('[AI Voice Assistant] Speak error:', err);
             isSpeakingRef.current = false;
@@ -360,9 +354,7 @@ export default function AIVoiceAssistant() {
         return () => {
             shouldKeepListeningRef.current = false;
             if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-            if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-            }
+            stopGeminiLady();
             if (recognitionRef.current) {
                 try { recognitionRef.current.stop(); } catch (e) { }
             }

@@ -11,7 +11,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'error', message: 'Invalid JSON' }, { status: 400 });
   }
 
-  const candidateUrls = getBackendCandidateUrls();
+  const customTunnel = req.headers.get('x-tunnel-url') || req.headers.get('x-custom-backend') || body.tunnel_url;
+  const candidateUrls = getBackendCandidateUrls(customTunnel);
 
   for (const baseUrl of candidateUrls) {
     try {
@@ -20,7 +21,11 @@ export async function POST(req: Request) {
 
       const res = await fetch(`${baseUrl}/api/ai-tutor/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'bypass-tunnel-reminder': 'true',
+          'User-Agent': 'SparshClient'
+        },
         body: JSON.stringify(body),
         signal: controller.signal,
       });

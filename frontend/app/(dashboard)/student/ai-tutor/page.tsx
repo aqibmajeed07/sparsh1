@@ -12,6 +12,7 @@ import SignAvatarOverlay from '@/components/live/SignAvatarOverlay';
 import { convertTextToSigns } from '@/lib/isl/textToSigns';
 import { supabase } from '@/lib/supabase';
 import { senseBand } from '@/lib/senseband';
+import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
 
 const LANGUAGES = [
   { code: 'en-US', name: 'English', greeting: { text: 'Hello! I am your AI Tutor. I can understand, write, sign, and take voice commands to control the app.', isl: 'hello me your ai tutor me understand write sign real time' } },
@@ -71,6 +72,19 @@ export default function AccessibilityAITutorPage() {
   const [highContrast, setHighContrast] = useState(false);
   const [deafBlindMode, setDeafBlindMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Local Ollama Cloudflare Tunnel State
+  const [showTunnelModal, setShowTunnelModal] = useState(false);
+  const [tunnelUrlInput, setTunnelUrlInput] = useState('');
+  const [activeTunnelUrl, setActiveTunnelUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sparsh_tunnel_url') || '';
+      setActiveTunnelUrl(saved);
+      setTunnelUrlInput(saved);
+    }
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -344,19 +358,26 @@ export default function AccessibilityAITutorPage() {
   };
 
   const speak = (text: string, langCode: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = langCode;
-      utterance.pitch = 1.0;
-      utterance.rate = 0.90;
-      utterance.onstart = () => { setIsSpeaking(true); setSpeakingText(text); };
-      utterance.onend = () => { setIsSpeaking(false); setSpeakingText(''); };
-      utterance.onpause = () => setIsSpeaking(false);
-      utterance.onresume = () => setIsSpeaking(true);
-      utterance.onerror = () => { setIsSpeaking(false); setSpeakingText(''); };
-      window.speechSynthesis.speak(utterance);
-    }
+    speakGeminiLady(text, {
+      lang: langCode,
+      pitch: 1.08, // Gemini Lady natural pitch
+      rate: 1.02,  // Fluid responsive speed
+      onStart: () => {
+        setIsSpeaking(true);
+        setSpeakingText(text);
+      },
+      onSentence: (sentence) => {
+        setSpeakingText(sentence);
+      },
+      onEnd: () => {
+        setIsSpeaking(false);
+        setSpeakingText('');
+      },
+      onError: () => {
+        setIsSpeaking(false);
+        setSpeakingText('');
+      }
+    });
   };
 
   const vibrateMorse = (text: string) => {
@@ -380,7 +401,7 @@ export default function AccessibilityAITutorPage() {
     if (isListening) {
       recognitionRef.current?.stop();
     } else {
-      window.speechSynthesis?.cancel();
+      stopGeminiLady();
       try { recognitionRef.current?.start(); } catch (e) { }
     }
   };
@@ -447,7 +468,9 @@ export default function AccessibilityAITutorPage() {
 
     try {
       let data: any = null;
+      const tunnelUrl = typeof window !== 'undefined' ? localStorage.getItem('sparsh_tunnel_url') : null;
       const directCandidates = [
+        tunnelUrl,
         process.env.NEXT_PUBLIC_BACKEND_URL,
         'http://localhost:8000',
         'http://127.0.0.1:8000',
@@ -457,10 +480,14 @@ export default function AccessibilityAITutorPage() {
       for (const candidate of directCandidates) {
         try {
           const directController = new AbortController();
-          const directTimeout = setTimeout(() => directController.abort(), 12000);
+          const directTimeout = setTimeout(() => directController.abort(), 14000);
           const directRes = await fetch(`${candidate}/api/ai-tutor/chat`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'bypass-tunnel-reminder': 'true',
+              'User-Agent': 'SparshClient'
+            },
             body: JSON.stringify({
               message: text,
               language: currentLang.code,
@@ -484,13 +511,17 @@ export default function AccessibilityAITutorPage() {
       if (!data) {
         const res = await fetch('/api/ai-tutor/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tunnelUrl ? { 'x-tunnel-url': tunnelUrl } : {})
+          },
           body: JSON.stringify({
             message: text,
             language: currentLang.code,
             detailed: isDetailedMode,
             session_id: currentSessionId,
-            user_id: user?.id
+            user_id: user?.id,
+            tunnel_url: tunnelUrl
           })
         });
         data = await res.json();
@@ -545,7 +576,7 @@ export default function AccessibilityAITutorPage() {
       { id: Date.now().toString(), sender: 'ai', text: currentLang.greeting.text, isl_translation: currentLang.greeting.isl }
     ]);
     setSignQueue(convertTextToSigns(currentLang.greeting.isl));
-    window.speechSynthesis?.cancel();
+    stopGeminiLady();
     if (window.innerWidth < 1024) setIsHistoryOpen(false);
   };
 
@@ -779,6 +810,36 @@ export default function AccessibilityAITutorPage() {
             <Settings2 className="w-4 h-4" />
           </button>
 
+          {/* Active Local Ollama Tunnel Pill */}
+          <button
+            onClick={() => setShowTunnelModal(true)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 border shadow-sm ${
+              activeTunnelUrl
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
+                : 'bg-white/10 text-white/70 hover:bg-white/20 border-white/10'
+            }`}
+            title="Configure Cloudflare Tunnel for Local Ollama AI"
+          >
+            <span className={`w-2 h-2 rounded-full ${activeTunnelUrl ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span>{activeTunnelUrl ? 'Ollama: Connected' : 'Connect Ollama Tunnel'}</span>
+          </button>
+
+          {/* Gemini Lady Voice Speaking Indicator & Stop Button */}
+          {isSpeaking && (
+            <button
+              onClick={() => {
+                stopGeminiLady();
+                setIsSpeaking(false);
+                setSpeakingText('');
+              }}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/40 transition flex items-center gap-1.5 animate-pulse shadow-sm"
+              title="Stop Gemini Voice"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-pink-400" />
+              <span>Gemini Voice: Stop</span>
+            </button>
+          )}
+
           {/* Language Selector */}
           <div className={`flex items-center gap-1.5 p-1 px-2.5 rounded-xl ${themeColors.card}`}>
             <Globe className={`w-3.5 h-3.5 ${highContrast ? 'text-yellow-400' : 'text-[#00C9A7]'}`} />
@@ -786,7 +847,7 @@ export default function AccessibilityAITutorPage() {
               {LANGUAGES.map((lang, idx) => (
                 <button
                   key={lang.code}
-                  onClick={() => { setLangIndex(idx); window.speechSynthesis?.cancel(); setSignQueue([]); }}
+                  onClick={() => { setLangIndex(idx); stopGeminiLady(); setSignQueue([]); }}
                   className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all ${
                     langIndex === idx ? themeColors.accent : (highContrast ? 'text-white hover:bg-white/10' : 'text-white/60 hover:bg-white/5')
                   }`}
@@ -1225,6 +1286,85 @@ export default function AccessibilityAITutorPage() {
                     <span className={`absolute top-1 left-1 w-6 h-6 bg-black rounded-full transition-transform ${deafBlindMode ? 'translate-x-6' : ''}`} />
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Local Ollama Cloudflare Tunnel Modal ── */}
+      <AnimatePresence>
+        {showTunnelModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setShowTunnelModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#18162e] border border-white/15 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-[#00C9A7]" />
+                  <h3 className="text-white font-bold text-base">Local Ollama Cloudflare Tunnel</h3>
+                </div>
+                <button onClick={() => setShowTunnelModal(false)} className="text-white/40 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-white/70 leading-relaxed">
+                Connect your laptop&apos;s local <strong>Ollama AI</strong> to the production app. Paste your active Cloudflare Tunnel URL below:
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase text-white/60">Cloudflare Tunnel URL</label>
+                <input
+                  type="url"
+                  value={tunnelUrlInput}
+                  onChange={(e) => setTunnelUrlInput(e.target.value)}
+                  placeholder="https://xxxx.trycloudflare.com"
+                  className="w-full bg-white/5 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00C9A7]"
+                />
+                <span className="text-[10px] text-white/40 block">From terminal: <code className="text-[#00C9A7]">cloudflared tunnel --url http://localhost:8000</code></span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    const clean = tunnelUrlInput.trim();
+                    if (typeof window !== 'undefined') {
+                      if (clean) {
+                        localStorage.setItem('sparsh_tunnel_url', clean);
+                      } else {
+                        localStorage.removeItem('sparsh_tunnel_url');
+                      }
+                    }
+                    setActiveTunnelUrl(clean);
+                    setShowTunnelModal(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#6C63FF] to-[#00C9A7] text-white font-bold text-xs shadow-md active:scale-95 transition"
+                >
+                  Save &amp; Connect Local Ollama
+                </button>
+                {activeTunnelUrl && (
+                  <button
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        localStorage.removeItem('sparsh_tunnel_url');
+                      }
+                      setActiveTunnelUrl('');
+                      setTunnelUrlInput('');
+                      setShowTunnelModal(false);
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold border border-red-500/30 transition"
+                  >
+                    Disconnect
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

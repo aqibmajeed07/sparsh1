@@ -51,6 +51,7 @@ import {
   GestureSampleData,
 } from '@/lib/gestureEngine';
 import { tokenizeForSigning, resolveToken } from '@/lib/isl/signMap';
+import { speakGeminiLady } from '@/lib/geminiVoice';
 
 // Dynamically import 3D ISL Avatar with SSR disabled
 const SignAvatarOverlay = dynamic(
@@ -225,34 +226,25 @@ export default function SmartGlovesDashboard() {
     gestureEngine.setHoldDuration(holdDurationMs);
   }, [confidenceThreshold, holdDurationMs]);
 
-  // ── Text-to-Speech Function ──
+  // ── Text-to-Speech Function (Gemini Lady Voice) ──
   const speakText = useCallback(
     (textToSpeak: string) => {
       if (!textToSpeak.trim()) return;
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
       try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.rate = ttsRate;
-        utterance.pitch = ttsPitch;
-
-        if (selectedVoice) {
-          const v = availableVoices.find((x) => x.name === selectedVoice);
-          if (v) utterance.voice = v;
-        }
-
-        utterance.onstart = () => setIsSpeakingNow(true);
-        utterance.onend = () => setIsSpeakingNow(false);
-        utterance.onerror = () => setIsSpeakingNow(false);
-
-        window.speechSynthesis.speak(utterance);
+        speakGeminiLady(textToSpeak, {
+          rate: ttsRate,
+          pitch: ttsPitch,
+          onStart: () => setIsSpeakingNow(true),
+          onEnd: () => setIsSpeakingNow(false),
+          onError: () => setIsSpeakingNow(false),
+        });
       } catch (err) {
         console.error('Speech synthesis error:', err);
         setIsSpeakingNow(false);
       }
     },
-    [ttsRate, ttsPitch, selectedVoice, availableVoices]
+    [ttsRate, ttsPitch]
   );
 
   // ── Two-Way Communication: Tokenize and Play to 3D Avatar ──
