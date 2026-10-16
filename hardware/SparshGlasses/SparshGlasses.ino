@@ -45,7 +45,7 @@
 #define BACKEND_FRAME_URL         "http://10.31.8.204:8000/api/glasses/frame"
 
 // Cloudflare Tunnel URL (Connects directly to production app over internet)
-#define BACKEND_TUNNEL_FRAME_URL  "https://output-available-cover-trade.trycloudflare.com/api/glasses/frame"
+#define BACKEND_TUNNEL_FRAME_URL  "https://momentum-combination-boom-penalties.trycloudflare.com/api/glasses/frame"
 
 #define HOSTNAME           "sparsh-glasses"
 

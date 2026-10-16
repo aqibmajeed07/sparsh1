@@ -11,7 +11,7 @@
  */
 
 // Active Cloudflare Tunnel for this development session
-export const CURRENT_ACTIVE_TUNNEL = 'https://output-available-cover-trade.trycloudflare.com';
+export const CURRENT_ACTIVE_TUNNEL = 'https://momentum-combination-boom-penalties.trycloudflare.com';
 export const CURRENT_LAN_BACKEND = 'http://10.31.8.204:8000';
 
 export function getBackendCandidateUrls(customTunnelUrl?: string | null): string[] {

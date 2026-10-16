@@ -13,7 +13,11 @@ export function CloudflareTunnelBadge() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('sparsh_tunnel_url') || CURRENT_ACTIVE_TUNNEL;
+      let saved = localStorage.getItem('sparsh_tunnel_url');
+      if (!saved || saved.includes('club-recreational') || saved.includes('output-available') || saved.includes('spare-nato')) {
+        saved = CURRENT_ACTIVE_TUNNEL;
+        localStorage.setItem('sparsh_tunnel_url', CURRENT_ACTIVE_TUNNEL);
+      }
       setTunnelUrl(saved);
     }
   }, []);
@@ -37,10 +41,21 @@ export function CloudflareTunnelBadge() {
     setTestMessage('Testing connection to Local Ollama & Glasses Backend...');
     const testUrl = tunnelUrl.trim() || CURRENT_ACTIVE_TUNNEL;
 
+    // 1. Try health via serverless proxy (bypasses browser CORS & mixed content)
+    try {
+      const proxyRes = await fetch(`/api/glasses/config?tunnel_url=${encodeURIComponent(testUrl)}`);
+      if (proxyRes.ok) {
+        setTestStatus('success');
+        setTestMessage('Connected to Sparsh AI Backend. Local Ollama & Glasses Ready!');
+        return;
+      }
+    } catch (_) {}
+
+    // 2. Direct fetch with bypass header
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      const res = await fetch(`${testUrl}/`, {
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`${testUrl}/health`, {
         method: 'GET',
         headers: {
           'bypass-tunnel-reminder': 'true',
