@@ -26,6 +26,7 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ESPmDNS.h>
+#include "esp_wifi.h"
 
 // Brownout protection registers (prevents unexpected reboot during camera/WiFi power draw)
 #include "soc/soc.h"
@@ -205,12 +206,37 @@ bool initCamera() {
   return true;
 }
 
+const char* getWifiStatusStr(wl_status_t status) {
+  switch (status) {
+    case WL_IDLE_STATUS:     return "IDLE / NEGOTIATING";
+    case WL_NO_SSID_AVAIL:   return "SSID NOT FOUND (Check 2.4GHz / SSID Name)";
+    case WL_SCAN_COMPLETED:  return "SCAN COMPLETED";
+    case WL_CONNECTED:       return "CONNECTED";
+    case WL_CONNECT_FAILED:  return "AUTH FAILED (Check Password or WPA3/PMF)";
+    case WL_CONNECTION_LOST: return "CONNECTION LOST";
+    case WL_DISCONNECTED:    return "DISCONNECTED";
+    default:                 return "UNKNOWN";
+  }
+}
+
 void connectWiFi() {
+  WiFi.disconnect(true);
+  delay(150);
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(HOSTNAME);
+  WiFi.setSleep(false); // Disable WiFi power save to prevent dropped authentication packets
+
+  // Enable Protected Management Frames (PMF) so ESP32 can connect to WPA3-Personal / Wi-Fi 6 & 7 routers
+  wifi_config_t conf;
+  if (esp_wifi_get_config(WIFI_IF_STA, &conf) == ESP_OK) {
+    conf.sta.pmf_cfg.capable = true;
+    conf.sta.pmf_cfg.required = false;
+    esp_wifi_set_config(WIFI_IF_STA, &conf);
+  }
+
+  Serial.printf("[wifi] Connecting to SSID: '%s'...\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-  Serial.printf("[wifi] Connecting to SSID: '%s'", WIFI_SSID);
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) {
     delay(500);
@@ -226,7 +252,7 @@ void connectWiFi() {
       Serial.println("[mdns] Responder active: http://sparsh-glasses.local");
     }
   } else {
-    Serial.println("[wifi] Could not connect in 15 seconds. Will keep retrying in loop without restarting.");
+    Serial.printf("[wifi] Could not connect in 15s. Status: %s\n", getWifiStatusStr(WiFi.status()));
   }
 }
 
@@ -458,8 +484,10 @@ void loop() {
   if (millis() - lastWifiCheckMs > 10000) {
     lastWifiCheckMs = millis();
     if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("[wifi] Connection lost. Reconnecting...");
-      WiFi.reconnect();
+      Serial.printf("[wifi] Not connected (%s). Reconnecting cleanly...\n", getWifiStatusStr(WiFi.status()));
+      WiFi.disconnect(false);
+      delay(100);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
     }
   }
   delay(2);
