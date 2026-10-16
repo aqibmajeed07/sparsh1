@@ -34,13 +34,13 @@
 // ==============================================================================
 // 1. WI-FI & BACKEND CREDENTIALS
 // ==============================================================================
-#define WIFI_SSID          "Aqib"
-#define WIFI_PASS          "mir1aqib"
+#define WIFI_SSID          "PTC"
+#define WIFI_PASS          "Ptc@#750"
 
 // Shared authentication token matching GLASSES_DEVICE_TOKEN in backend/.env
 #define DEVICE_TOKEN       "sparsh_glasses_aqib_mir_2026"
 
-// Laptop LAN IP (Active on Wi-Fi "Aqib" -> 10.31.8.204)
+// Laptop LAN IP (Active on Wi-Fi "PTC" -> 10.31.8.204)
 #define BACKEND_FRAME_URL         "http://10.31.8.204:8000/api/glasses/frame"
 
 // Cloudflare Tunnel URL (Connects directly to production app over internet)

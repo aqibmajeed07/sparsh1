@@ -15,6 +15,8 @@ export function getGlassesCaptureUrl(): string {
   return `/api/glasses/capture?t=${t}`;
 }
 
+let cachedWorkingCandidate: { url: string; expiresAt: number } | null = null;
+
 export async function fetchGlassesApi(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const isPost = options.method === 'POST';
   const candidates = getBackendCandidateUrls();
@@ -36,16 +38,30 @@ export async function fetchGlassesApi(endpoint: string, options: RequestInit = {
     baseHeaders['x-tunnel-url'] = activeTunnel;
   }
 
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+  // Sort candidates so cached working candidate is checked first
+  const orderedCandidates = [...candidates];
+  if (cachedWorkingCandidate && Date.now() < cachedWorkingCandidate.expiresAt) {
+    const cachedUrl = cachedWorkingCandidate.url;
+    const idx = orderedCandidates.indexOf(cachedUrl);
+    if (idx > -1) {
+      orderedCandidates.splice(idx, 1);
+      orderedCandidates.unshift(cachedUrl);
+    }
+  }
+
   // 1. Try candidates in priority order (Cloudflare Tunnel -> LAN -> Local -> Proxy)
-  for (const candidate of candidates) {
-    // Skip unencrypted http:// loopback if browser is loaded over HTTPS to prevent Mixed Content Error
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && candidate.startsWith('http://localhost') || candidate.startsWith('http://127.0.0.1')) {
+  for (const candidate of orderedCandidates) {
+    // Avoid Mixed Content on HTTPS pages
+    if (isHttps && (candidate.startsWith('http://localhost') || candidate.startsWith('http://127.0.0.1') || candidate.startsWith('http://10.'))) {
       continue;
     }
 
     try {
       const controller = new AbortController();
-      const timeoutMs = isPost ? 30000 : 5000;
+      // Fast timeout for quick GET polling (1800ms) to prevent browser queue congestion
+      const timeoutMs = isPost ? 30000 : 1800;
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       const mergedHeaders = new Headers(options.headers || {});
@@ -64,10 +80,14 @@ export async function fetchGlassesApi(endpoint: string, options: RequestInit = {
       clearTimeout(timeout);
 
       if (res.ok) {
+        cachedWorkingCandidate = { url: candidate, expiresAt: Date.now() + 60000 };
         return res;
       }
     } catch (err) {
-      // Try next candidate
+      // If cached candidate failed, invalidate it
+      if (cachedWorkingCandidate?.url === candidate) {
+        cachedWorkingCandidate = null;
+      }
     }
   }
 

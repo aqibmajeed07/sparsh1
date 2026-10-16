@@ -70,12 +70,26 @@ export function VoiceAssistantControl() {
   const [copiedTranscription, setCopiedTranscription] = useState<boolean>(false);
   const lastButtonIdRef = useRef<number>(0);
 
-  // Poll for physical button presses on hardware glasses (every 1.5s)
+  // Poll for physical button presses on hardware glasses (single-flight, tab-aware to eliminate browser lag)
   useEffect(() => {
-    const pollInterval = setInterval(async () => {
+    let isCancelled = false;
+    let inFlight = false;
+
+    const poll = async () => {
+      if (isCancelled) return;
+      // Skip network poll if the browser tab is hidden/minimized
+      if (typeof document !== 'undefined' && document.hidden) {
+        setTimeout(poll, 3000);
+        return;
+      }
+      if (inFlight) {
+        setTimeout(poll, 2000);
+        return;
+      }
+      inFlight = true;
       try {
         const res = await fetchGlassesApi(`button-result?since=${lastButtonIdRef.current}`);
-        if (res.ok) {
+        if (res && res.ok) {
           const d = await res.json();
           if (d && d.id && d.id > lastButtonIdRef.current && d.text) {
             lastButtonIdRef.current = d.id;
@@ -86,11 +100,23 @@ export function VoiceAssistantControl() {
             speak(d.text);
           }
         }
-      } catch (_) {}
-    }, 1500);
+      } catch (_) {
+      } finally {
+        inFlight = false;
+        if (!isCancelled) {
+          // Relaxed cadence: 2500ms when modal is open, 4000ms when idle/closed
+          const nextDelay = isOpen ? 2500 : 4000;
+          setTimeout(poll, nextDelay);
+        }
+      }
+    };
 
-    return () => clearInterval(pollInterval);
-  }, [speak]);
+    const initialTimer = setTimeout(poll, 1500);
+    return () => {
+      isCancelled = true;
+      clearTimeout(initialTimer);
+    };
+  }, [speak, isOpen]);
 
   // Listen for voice-triggered smart glasses snapshot events ("take image", "analyse in front of me")
   useEffect(() => {
