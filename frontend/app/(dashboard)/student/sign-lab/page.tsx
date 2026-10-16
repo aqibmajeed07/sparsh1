@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Webcam from 'react-webcam';
 import { hasSign } from '@/lib/isl/signMap';
 import CelebrationOverlay from '@/components/ui/CelebrationOverlay';
+import { speakGeminiLady } from '@/lib/geminiVoice';
 
 const SignAvatarOverlay = dynamic(
   () => import('@/components/live/SignAvatarOverlay'),
@@ -499,19 +500,11 @@ export default function SignLabPage() {
   };
 
   const playTTS = (text: string, langCode: string) => {
-    if ('speechSynthesis' in window) {
-      // Cancel any ongoing speech so it doesn't queue up a massive backlog
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      // Fallback to English if the specific regional language voice isn't available
-      utterance.lang = langCode || 'en-IN';
-      utterance.rate = 0.9; // Slightly slower for clarity
-      utterance.pitch = 1.1; // Slightly friendlier pitch
-
-      window.speechSynthesis.speak(utterance);
-    }
+    speakGeminiLady(text, {
+      lang: langCode || 'en-US',
+      pitch: 1.08,
+      rate: 1.0,
+    });
   };
 
   return (

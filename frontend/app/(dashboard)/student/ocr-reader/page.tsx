@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useAccessibility } from '@/components/AccessibilityContext';
 import { Upload, Camera, FileText, Volume2, Sparkles, CheckCircle, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import Tesseract from 'tesseract.js';
+import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
 
 const SAMPLE_PAGES = [
     {
@@ -130,9 +131,18 @@ export default function OCRReaderPage() {
     };
 
     const handleReadAloud = () => {
+        if (isReading) {
+            stopGeminiLady();
+            setIsReading(false);
+            return;
+        }
+
         setIsReading(true);
-        speak(extractedText);
-        setTimeout(() => setIsReading(false), 8000);
+        speakGeminiLady(extractedText, {
+            lang: 'en-US',
+            onEnd: () => setIsReading(false),
+            onError: () => setIsReading(false),
+        });
     };
 
     const handleGenerateSummary = async () => {

@@ -1,8 +1,8 @@
 // SPARSH VoiceVision — Sentence-Chunked Text-to-Speech Engine
 // Implements resilient sentence chunking and cancel-and-remember pause/resume
-// to overcome native SpeechSynthesis limitations on Android Chrome and desktop browsers.
+// with V8 GC pinning and Windows driver error recovery to speak all content without cutting off.
 
-import { getGeminiLadyVoice } from '@/lib/geminiVoice';
+import { getGeminiLadyVoice, cleanTextForSpeech, splitIntoCleanSentences } from '@/lib/geminiVoice';
 
 export interface TTSOptions {
   rate?: number;
@@ -21,13 +21,14 @@ export class SentenceChunkedTTS {
   private isPaused: boolean = false;
   private options: TTSOptions;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
+  private heartbeatTimer: any = null;
 
   constructor(options: TTSOptions = {}) {
     this.options = {
       rate: 1.0,
-      pitch: 1.0,
+      pitch: 1.06,
       volume: 1.0,
-      lang: 'en-IN',
+      lang: 'en-US',
       ...options,
     };
   }
@@ -37,45 +38,15 @@ export class SentenceChunkedTTS {
   }
 
   /**
-   * Splits long prose into natural sentence chunks of < 180 characters.
+   * Splits long prose into natural, robust sentence chunks using the SPARSH Gemini Voice engine.
    */
   public static splitIntoSentences(text: string): string[] {
-    if (!text || !text.trim()) return [];
-
-    // Normalize whitespace and linebreaks
-    const cleaned = text.replace(/[\r\n]+/g, '. ').replace(/\s+/g, ' ').trim();
-
-    // Split on punctuation (. ? ! ;) followed by space or end
-    const rawSentences = cleaned.split(/(?<=[.?!;:])\s+/);
-    const chunks: string[] = [];
-
-    for (const raw of rawSentences) {
-      const sentence = raw.trim();
-      if (!sentence) continue;
-
-      if (sentence.length <= 180) {
-        chunks.push(sentence);
-      } else {
-        // Sub-chunk by commas or conjunctions if a single sentence is unusually long
-        const clauses = sentence.split(/(?<=[,])\s+/);
-        let buffer = '';
-        for (const cl of clauses) {
-          if ((buffer + ' ' + cl).trim().length <= 180) {
-            buffer = (buffer + ' ' + cl).trim();
-          } else {
-            if (buffer) chunks.push(buffer);
-            buffer = cl.trim();
-          }
-        }
-        if (buffer) chunks.push(buffer);
-      }
-    }
-
-    return chunks.length > 0 ? chunks : [cleaned];
+    const cleaned = cleanTextForSpeech(text);
+    return splitIntoCleanSentences(cleaned);
   }
 
   /**
-   * Speak a text string by breaking it into sentence chunks.
+   * Speak a text string by breaking it into robust sentence chunks that never cut off after 3-4 words.
    */
   public speak(text: string, options?: Partial<TTSOptions>) {
     this.stop();
@@ -83,7 +54,8 @@ export class SentenceChunkedTTS {
       this.updateOptions(options);
     }
 
-    this.chunks = SentenceChunkedTTS.splitIntoSentences(text);
+    const cleaned = cleanTextForSpeech(text);
+    this.chunks = splitIntoCleanSentences(cleaned);
     this.currentIndex = 0;
     this.isPaused = false;
 
@@ -93,7 +65,35 @@ export class SentenceChunkedTTS {
     }
 
     this.isSpeaking = true;
-    this.speakCurrentChunk();
+
+    // Windows Audio Driver Settling Buffer (80ms)
+    setTimeout(() => {
+      if (this.isSpeaking && !this.isPaused) {
+        this.startHeartbeat();
+        this.speakCurrentChunk();
+      }
+    }, 80);
+  }
+
+  private startHeartbeat() {
+    this.clearHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else if (!this.isSpeaking) {
+          this.clearHeartbeat();
+        }
+      }
+    }, 8000);
+  }
+
+  private clearHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   /**
@@ -104,6 +104,7 @@ export class SentenceChunkedTTS {
     if (!this.isSpeaking || this.isPaused) return;
 
     this.isPaused = true;
+    this.clearHeartbeat();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -117,6 +118,7 @@ export class SentenceChunkedTTS {
 
     this.isPaused = false;
     this.isSpeaking = true;
+    this.startHeartbeat();
     this.speakCurrentChunk();
   }
 
@@ -129,9 +131,13 @@ export class SentenceChunkedTTS {
     this.chunks = [];
     this.currentIndex = 0;
     this.currentUtterance = null;
+    this.clearHeartbeat();
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (typeof window !== 'undefined') {
+      (window as any).__sparsh_voicevision_utterance = null;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     }
   }
 
@@ -200,6 +206,7 @@ export class SentenceChunkedTTS {
 
     if (this.currentIndex >= this.chunks.length) {
       this.isSpeaking = false;
+      this.clearHeartbeat();
       this.options.onEnd?.();
       return;
     }
@@ -207,47 +214,67 @@ export class SentenceChunkedTTS {
     const chunkText = this.chunks[this.currentIndex];
     this.options.onChunkChange?.(this.currentIndex, this.chunks.length, chunkText);
 
-    const utterance = new SpeechSynthesisUtterance(chunkText);
-    utterance.lang = this.options.lang || 'en-IN';
-    utterance.rate = this.options.rate ?? 1.0;
-    utterance.pitch = this.options.pitch ?? 1.0;
-    utterance.volume = this.options.volume ?? 1.0;
+    try {
+      const utterance = new SpeechSynthesisUtterance(chunkText);
+      utterance.lang = this.options.lang || 'en-US';
+      utterance.rate = this.options.rate ?? 1.0;
+      utterance.pitch = this.options.pitch ?? 1.06;
+      utterance.volume = this.options.volume ?? 1.0;
 
-    // Pick best natural Gemini Lady voice
-    const preferredVoice = getGeminiLadyVoice(this.options.lang || 'en-IN');
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
+      // Pick best natural Gemini Lady voice
+      const preferredVoice = getGeminiLadyVoice(this.options.lang || 'en-US');
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
 
-    utterance.onend = () => {
-      if (this.isPaused || !this.isSpeaking) return;
-      this.currentIndex++;
-      if (this.currentIndex < this.chunks.length) {
-        // Small delay between sentences for natural cadenced breathing
+      // GC PINNING: Prevents V8 Garbage Collector from killing speech midway!
+      if (typeof window !== 'undefined') {
+        (window as any).__sparsh_voicevision_utterance = utterance;
+      }
+
+      utterance.onend = () => {
+        if (this.isPaused || !this.isSpeaking) return;
+        this.currentIndex++;
+        if (this.currentIndex < this.chunks.length) {
+          // 80ms WASAPI buffer allows audio devices to cycle cleanly
+          setTimeout(() => {
+            if (this.isSpeaking && !this.isPaused) {
+              this.speakCurrentChunk();
+            }
+          }, 80);
+        } else {
+          this.isSpeaking = false;
+          this.clearHeartbeat();
+          this.options.onEnd?.();
+        }
+      };
+
+      utterance.onerror = (e) => {
+        // CRITICAL: If audio driver throws 'interrupted', do NOT abort!
+        // Advance to next chunk smoothly.
+        if (this.isSpeaking && !this.isPaused) {
+          console.warn('[SPARSH TTS] Chunk notification:', e.error, '- continuing next sentence');
+          this.currentIndex++;
+          setTimeout(() => {
+            if (this.isSpeaking && !this.isPaused) {
+              this.speakCurrentChunk();
+            }
+          }, 100);
+        }
+      };
+
+      this.currentUtterance = utterance;
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn('[SPARSH TTS] Utterance error, advancing:', err);
+      if (this.isSpeaking && !this.isPaused) {
+        this.currentIndex++;
         setTimeout(() => {
           if (this.isSpeaking && !this.isPaused) {
             this.speakCurrentChunk();
           }
-        }, 120);
-      } else {
-        this.isSpeaking = false;
-        this.options.onEnd?.();
+        }, 100);
       }
-    };
-
-    utterance.onerror = (e) => {
-      // 'interrupted' or 'canceled' are expected when user stops or pauses
-      if (e.error === 'interrupted' || e.error === 'canceled') {
-        return;
-      }
-      console.warn('[SPARSH TTS] Chunk synthesis warning:', e.error);
-      if (this.isSpeaking && !this.isPaused) {
-        this.currentIndex++;
-        this.speakCurrentChunk();
-      }
-    };
-
-    this.currentUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
+    }
   }
 }

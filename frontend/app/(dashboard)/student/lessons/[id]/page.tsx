@@ -9,6 +9,7 @@ import CelebrationOverlay from '@/components/ui/CelebrationOverlay';
 import { senseBand } from '@/lib/senseband';
 import { useVoiceCommands } from '@/lib/voicevision/commands/registry';
 import { PageMediaController } from '@/lib/voicevision/page/media';
+import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
 
 const SignAvatarOverlay = dynamic(
   () => import('@/components/live/SignAvatarOverlay'),
@@ -41,24 +42,21 @@ export default function LessonPlayerPage() {
 
   // Sign resolution uses tokenizeForSigning (handles fingerspelling for unknown words)
 
-  // ── TTS helper — must always be called from inside a user gesture ──
+  // ── TTS helper with Gemini Lady Voice — reads full explanation without cutting off ──
   const startTTS = useCallback((text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-IN';
-    utterance.rate = 0.88;
-    utterance.pitch = 1.05;
-    utterance.volume = 1.0;
-    utterance.onstart = () => setTtsPlaying(true);
-    utterance.onend = () => setTtsPlaying(false);
-    utterance.onerror = () => setTtsPlaying(false);
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+    setTtsPlaying(true);
+    speakGeminiLady(text, {
+      lang: 'en-US',
+      pitch: 1.06,
+      rate: 1.0,
+      onStart: () => setTtsPlaying(true),
+      onEnd: () => setTtsPlaying(false),
+      onError: () => setTtsPlaying(false),
+    });
   }, []);
 
   const stopTTS = useCallback(() => {
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    stopGeminiLady();
     setTtsPlaying(false);
   }, []);
 

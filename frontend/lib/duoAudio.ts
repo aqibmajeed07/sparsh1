@@ -4,6 +4,8 @@
  * and pitch-graded tactile audio tones for blind learners without external audio files.
  */
 
+import { speakGeminiLady, stopGeminiLady } from './geminiVoice';
+
 class DuoAudioEngine {
   private ctx: AudioContext | null = null;
 
@@ -194,26 +196,18 @@ class DuoAudioEngine {
   }
 
   /**
-   * Speaks accessible instructions aloud via Web Speech API
+   * Speaks accessible instructions aloud via Gemini Lady Voice Synthesizer
    */
   public speakPrompt(text: string, lang = 'en-US') {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang;
-      utterance.rate = 0.95;
-      utterance.pitch = 1.05;
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      // Speech synthesis error handled gracefully
-    }
+    speakGeminiLady(text, {
+      lang,
+      pitch: 1.06,
+      rate: 1.0,
+    });
   }
 
   public stopSpeaking() {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopGeminiLady();
   }
 }
 

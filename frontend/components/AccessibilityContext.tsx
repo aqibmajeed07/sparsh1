@@ -1,6 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { speakGeminiLady, stopGeminiLady } from '@/lib/geminiVoice';
 
 interface AccessibilityContextType {
     highContrast: boolean;
@@ -38,15 +39,13 @@ export const AccessibilityProvider = ({ children }: { children: React.ReactNode 
     const [profileMode, setProfileModeState] = useState('general');
     const router = useRouter();
 
-    // Handle TTS
+    // Handle TTS with Gemini Lady Voice Synthesizer
     const speak = (text: string) => {
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'en-IN';
-            u.rate = 0.9;
-            window.speechSynthesis.speak(u);
-        }
+        speakGeminiLady(text, {
+            lang: 'en-US',
+            pitch: 1.06,
+            rate: 1.0,
+        });
     };
 
     const toggleHighContrast = () => setHighContrast(prev => !prev);
